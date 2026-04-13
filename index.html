@@ -290,6 +290,31 @@
       display: flex; align-items: flex-start; gap: 0.5rem;
     }
     .success-criteria span { color: #22d3ee; font-weight: 900; white-space: nowrap; }
+
+    /* ═══════════════════ COUNTDOWN ═══════════════════ */
+    .countdown-display {
+      display: flex; align-items: center; justify-content: center;
+      gap: 0.5rem; padding: 0.6rem 1rem;
+      background: rgba(0,0,0,0.3);
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.06);
+      font-family: 'Courier New', monospace;
+      font-size: 1.05rem; font-weight: 700;
+      letter-spacing: 2px;
+      color: #a78bfa;
+    }
+    .countdown-display.urgent {
+      color: #ef4444;
+      border-color: rgba(239,68,68,0.4);
+      background: rgba(239,68,68,0.08);
+      animation: pulse-red 1.5s ease-in-out infinite;
+    }
+    .countdown-display.warning {
+      color: #f59e0b;
+      border-color: rgba(245,158,11,0.35);
+      background: rgba(245,158,11,0.07);
+    }
+    .countdown-label { font-size: 0.65rem; letter-spacing: 0.5px; color: var(--text-muted); font-family: var(--font-body); font-weight: 800; text-transform: uppercase; margin-right: 0.25rem; }
   </style>
 </head>
 <body>
@@ -408,11 +433,12 @@
     let state = {
       goals: [], archivedGoals: [], isSynced: false
     };
-    let currentView = 'active'; // 'active' or 'vault'
+    let currentView = 'active';
     let driveFileId = null;
     let tokenClient = null;
     let gapiInited = false;
     let autoSyncInt = null;
+    let countdownIntervals = {}; // track per-goal countdown intervals
 
     // --- INIT ---
     function init() {
@@ -721,6 +747,7 @@
                 <button title="Delete Goal" style="background:none; border:none; color:var(--text-muted); cursor:pointer;" onclick="deleteGoal('${g.id}')">🗑️</button>
               </div>
             </div>
+            ${g.deadline ? `<div class="countdown-display" id="countdown-${g.id}"><span class="countdown-label">⏱ Time Left</span> --:--:--</div>` : ''}
             ${contentHtml}
           </div>
         `;
@@ -736,6 +763,68 @@
         <span>🏆 <strong>${vaultCount}</strong> Goals Conquered</span>
         <span>✅ <strong>${totalCrushed}</strong> Lifetime Tasks Crushed</span>
       `;
+
+      // Setup live countdowns
+      setupCountdowns();
+    }
+
+    // --- LIVE COUNTDOWNS ---
+    let countdownIntervals = {};
+
+    function setupCountdowns() {
+      // Clear all old intervals before setting new ones
+      Object.values(countdownIntervals).forEach(id => clearInterval(id));
+      countdownIntervals = {};
+
+      state.goals.forEach(g => {
+        if (!g.deadline) return;
+        const el = document.getElementById(`countdown-${g.id}`);
+        if (!el) return;
+
+        function tick() {
+          const remaining = g.deadline - Date.now();
+          const daysLeft = remaining / 86400000;
+
+          if (remaining <= 0) {
+            el.className = 'countdown-display urgent';
+            el.innerHTML = `<span class="countdown-label">⏱ Time Left</span> 🔴 EXPIRED`;
+            clearInterval(countdownIntervals[g.id]);
+            return;
+          }
+
+          const totalSecs = Math.floor(remaining / 1000);
+          const days  = Math.floor(totalSecs / 86400);
+          const hrs   = Math.floor((totalSecs % 86400) / 3600);
+          const mins  = Math.floor((totalSecs % 3600) / 60);
+          const secs  = totalSecs % 60;
+          const pad   = n => String(n).padStart(2, '0');
+
+          let timeStr = '';
+          if (days > 0) timeStr = `${days}d ${pad(hrs)}h ${pad(mins)}m`;
+          else          timeStr = `${pad(hrs)}:${pad(mins)}:${pad(secs)}`;
+
+          // Urgency CSS class
+          if      (daysLeft <  1) el.className = 'countdown-display urgent';
+          else if (daysLeft <= 3) el.className = 'countdown-display urgent';
+          else if (daysLeft <= 7) el.className = 'countdown-display warning';
+          else                    el.className = 'countdown-display';
+
+          el.innerHTML = `<span class="countdown-label">⏱ Time Left</span> ${timeStr}`;
+        }
+
+        tick(); // Run immediately on render
+
+        // Refresh rate per user specification:
+        const remaining = g.deadline - Date.now();
+        const daysLeft  = remaining / 86400000;
+        let intervalMs;
+        if      (daysLeft <  1) intervalMs = 5  * 60 * 1000;    // < 1 day  → every 5 min
+        else if (daysLeft <= 3) intervalMs = 30 * 60 * 1000;    // < 3 days → every 30 min
+        else if (daysLeft <= 7) intervalMs = 60 * 60 * 1000;    // 3-7 days → every 1 hr
+        else                    intervalMs = 4  * 60 * 60 * 1000;// > 7 days → every 4 hrs
+
+        countdownIntervals[g.id] = setInterval(tick, intervalMs);
+      });
     }
 
     function renderTasks(tasks, gId, sId) {
