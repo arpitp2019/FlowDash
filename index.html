@@ -147,6 +147,17 @@
     /* Vault */
     .vault-card { border-left: 4px solid var(--time-safari); opacity: 0.9; }
     .vault-stats { display: flex; gap: 1rem; margin-top: 1rem; font-size: 0.9rem; color: var(--text-muted); background: rgba(0,0,0,0.2); padding: 0.5rem; border-radius: 6px;}
+
+    /* Expired */
+    .expired-banner { background: rgba(127,29,29,0.4); border: 1px solid #ef4444; border-radius: 6px; padding: 0.5rem 0.75rem; font-size: 0.8rem; color: #fca5a5; font-weight: 600; display: flex; align-items: center; gap: 0.5rem; }
+
+    /* Success Criteria chip */
+    .success-criteria { font-size: 0.8rem; color: var(--text-muted); background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.2); border-radius: 6px; padding: 0.4rem 0.75rem; }
+    .success-criteria span { color: var(--accent); font-weight: 600; }
+
+    /* Dashboard Stats */
+    .stats-bar { display: flex; gap: 1.5rem; padding: 0.75rem 1.25rem; background: var(--bg-card); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); font-size: 0.85rem; color: var(--text-muted); }
+    .stats-bar strong { color: var(--text-main); }
   </style>
 </head>
 <body>
@@ -174,6 +185,9 @@
     <div id="vault-container" class="goal-grid" style="display:none;">
       <!-- Vault Render Here -->
     </div>
+    <div id="stats-bar" class="stats-bar" style="display:none;">
+      <!-- Stats Render Here -->
+    </div>
   </div>
 
   <!-- New Goal Modal -->
@@ -186,6 +200,10 @@
       <div class="form-group">
         <label>Goal Definition (Specific)</label>
         <input type="text" id="g-title" placeholder="e.g. Complete Q3 Report">
+      </div>
+      <div class="form-group">
+        <label>Success Criteria (Measurable) <span style="color:var(--text-muted); font-size:0.8rem">— How will you know you've succeeded?</span></label>
+        <input type="text" id="g-criteria" placeholder="e.g. Report submitted and approved by manager">
       </div>
       <div class="form-group">
         <label>Time Horizon</label>
@@ -473,9 +491,21 @@
       gCont.innerHTML = state.goals.map(g => {
         let isLong = g.type === 'long';
         let goalTime = calculateTimeRemainingInfo(g.createdAt, g.deadline);
+        let isExpired = g.deadline && Date.now() > g.deadline;
         
         // Inner Content depending on Type
         let contentHtml = '';
+
+        // Expired banner
+        if(isExpired) {
+          contentHtml += `<div class="expired-banner">⚠️ DEADLINE PASSED — Act now or reschedule this goal.</div>`;
+        }
+
+        // Success criteria chip
+        if(g.success_criteria) {
+          contentHtml += `<div class="success-criteria"><span>✓ Win Condition:</span> ${g.success_criteria}</div>`;
+        }
+
         if(isLong) {
           // Long Term: Show specific goal time above sprints
           contentHtml += `
@@ -495,7 +525,10 @@
               <div class="sprint-container">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                   <h4>⚡ Active Sprint: ${activeSprint.title}</h4>
-                  <button class="btn btn-small btn-outline" onclick="openTaskModal('${g.id}', '${activeSprint.id}')">+ Task</button>
+                  <div style="display:flex; gap:0.5rem;">
+                    <button class="btn btn-small btn-outline" onclick="openTaskModal('${g.id}', '${activeSprint.id}')">+ Task</button>
+                    <button class="btn btn-small" style="background:var(--time-safari)" onclick="completeSprint('${g.id}', '${activeSprint.id}')">✓ Done</button>
+                  </div>
                 </div>
                 
                 <div class="dual-bars">
@@ -541,9 +574,10 @@
         }
 
         let typeLabel = isLong ? 'LONG TERM' : 'SHORT TERM';
+        let cardBorder = isExpired ? 'border-color: #ef4444;' : '';
 
         return `
-          <div class="card" id="g-${g.id}">
+          <div class="card" id="g-${g.id}" style="${cardBorder}">
             <div class="card-header">
               <div class="card-title">${g.title}</div>
               <div style="display:flex; gap:0.5rem; align-items:center;">
@@ -556,6 +590,17 @@
           </div>
         `;
       }).join('');
+
+      // Update stats bar
+      let vaultCount = state.archivedGoals ? state.archivedGoals.length : 0;
+      let totalCrushed = state.archivedGoals ? state.archivedGoals.reduce((sum, g) => sum + (g.tasksCrushed || 0), 0) : 0;
+      let statsBar = document.getElementById('stats-bar');
+      statsBar.style.display = 'flex';
+      statsBar.innerHTML = `
+        <span>🎯 <strong>${state.goals.length}</strong> Active Goal${state.goals.length !== 1 ? 's' : ''}</span>
+        <span>🏆 <strong>${vaultCount}</strong> Goals Conquered</span>
+        <span>✅ <strong>${totalCrushed}</strong> Lifetime Tasks Crushed</span>
+      `;
     }
 
     function renderTasks(tasks, gId, sId) {
@@ -575,6 +620,7 @@
     // Create Goal
     function openGoalModal() { 
       document.getElementById('g-title').value = '';
+      document.getElementById('g-criteria').value = '';
       document.getElementById('goal-modal').style.display = 'flex'; 
     }
     
@@ -584,11 +630,13 @@
       let title = document.getElementById('g-title').value;
       let type = document.getElementById('g-type').value;
       let deadVal = document.getElementById('g-deadline').value;
+      let criteria = document.getElementById('g-criteria').value;
       if(!title) return;
 
       let goal = {
         id: generateId(), title, type, createdAt: Date.now(), status: 'active',
         deadline: deadVal ? new Date(deadVal).getTime() : null,
+        success_criteria: criteria || null,
         sprints: [], tasks: []
       };
 
@@ -666,6 +714,16 @@
       } else {
         goal.tasks = goal.tasks.filter(x => x.id !== tId);
       }
+      saveLocal();
+    }
+
+    function completeSprint(gId, sId) {
+      let goal = state.goals.find(g => g.id === gId);
+      if(!goal) return;
+      let sprint = goal.sprints.find(s => s.id === sId);
+      if(!sprint) return;
+      sprint.status = 'complete';
+      sprint.completedAt = Date.now();
       saveLocal();
     }
 
