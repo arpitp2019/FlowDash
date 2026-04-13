@@ -706,18 +706,18 @@
       vCont.innerHTML = sorted.map(g => {
         let dateObj = new Date(g.completedAt);
         let dateStr = dateObj.toLocaleDateString() + ' at ' + dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-        return \`
+        return `
           <div class="card vault-card">
             <div class="card-header">
-              <div class="card-title">\${g.title}</div>
-              <span class="card-meta">Decimated on \${dateStr}</span>
+              <div class="card-title">${g.title}</div>
+              <span class="card-meta">Decimated on ${dateStr}</span>
             </div>
             <div class="vault-stats">
-              <span><strong>Tasks Crushed:</strong> \${g.tasksCrushed || 0}</span>
-              <span><strong>Type:</strong> \${g.type === 'long' ? 'Long Term' : 'Short Term'}</span>
+              <span><strong>Tasks Crushed:</strong> ${g.tasksCrushed || 0}</span>
+              <span><strong>Type:</strong> ${g.type === 'long' ? 'Long Term' : 'Short Term'}</span>
             </div>
           </div>
-        \`;
+        `;
       }).join('');
     }
 
