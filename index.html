@@ -537,6 +537,8 @@
           if (fileRes.body) {
             let remoteState = JSON.parse(fileRes.body);
             if(!remoteState.player) { // Confirm not old data
+              if(!remoteState.archivedGoals) remoteState.archivedGoals = [];
+              if(!remoteState.goals) remoteState.goals = [];
               state = remoteState;
               saveLocal();
             }
@@ -1052,17 +1054,24 @@
       if(!g) return;
       
       let tasksCrushed = 0;
-      if(g.type === 'long') {
-         g.sprints.forEach(s => tasksCrushed += s.tasks.filter(t=>t.done).length);
-      } else {
-         tasksCrushed = g.tasks.filter(t=>t.done).length;
-      }
+      try {
+        if(g.type === 'long') {
+           if (Array.isArray(g.sprints)) {
+             g.sprints.forEach(s => {
+               if (Array.isArray(s.tasks)) tasksCrushed += s.tasks.filter(t=>t && t.done).length;
+             });
+           }
+        } else {
+           if (Array.isArray(g.tasks)) tasksCrushed = g.tasks.filter(t=>t && t.done).length;
+        }
+      } catch(e) { console.error('Task crush calculation failed', e); }
       
       // Clean up physics and set timestamp
       g.status = 'archived';
       g.completedAt = Date.now();
       g.tasksCrushed = tasksCrushed;
 
+      if (!state.archivedGoals) state.archivedGoals = [];
       state.archivedGoals.push(g);
       state.goals = state.goals.filter(x => x.id !== gId);
       saveLocal();
