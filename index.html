@@ -610,14 +610,8 @@
       let rawPassed = Date.now() - createdAt;
       let remaining = deadline - Date.now();
       
-      // Determine the quantized "tick" step based on urgency
-      let stepMs = 3600000; // <= 3 days: 1 hour tick
-      if (remaining > 7 * 86400000) stepMs = 86400000; // > 7 days: 1 day tick
-      else if (remaining > 3 * 86400000) stepMs = 43200000; // 3 to 7 days: 12 hour tick
-      
-      // Quantize "passed" time so the bar jumps in chunks
-      let passed = Math.floor(rawPassed / stepMs) * stepMs;
-      passed = Math.max(0, Math.min(passed, total));
+      // Use exact elapsed time for smooth progress rather than jumping in chunks
+      let passed = Math.max(0, Math.min(rawPassed, total));
 
       // pctElapsed: 0% = just started, 100% = deadline hit (bar FILLS as urgency grows)
       let rawPctElapsed = (passed / total) * 100;
