@@ -562,7 +562,7 @@
     function generateId() { return Math.random().toString(36).substr(2, 9); }
     
     function calculateTimeRemainingInfo(createdAt, deadline) {
-      if(!deadline) return { pctLeft: 100, color: 'var(--bar-bg)', text: 'No Deadline' };
+      if(!deadline) return { pctElapsed: 0, color: 'var(--bar-bg)', text: 'No Deadline' };
       let total = deadline - createdAt;
       let rawPassed = Date.now() - createdAt;
       let remaining = deadline - Date.now();
@@ -572,25 +572,28 @@
       if (remaining > 7 * 86400000) stepMs = 86400000; // > 7 days: 1 day tick
       else if (remaining > 3 * 86400000) stepMs = 43200000; // 3 to 7 days: 12 hour tick
       
-      // Quantize "passed" time so the progress bar jumps in chunks
+      // Quantize "passed" time so the bar jumps in chunks
       let passed = Math.floor(rawPassed / stepMs) * stepMs;
       passed = Math.max(0, Math.min(passed, total));
 
-      let rawPctLeft = 100 - ((passed / total) * 100);
-      let pctLeft = Math.max(0, Math.min(100, rawPctLeft));
+      // pctElapsed: 0% = just started, 100% = deadline hit (bar FILLS as urgency grows)
+      let rawPctElapsed = (passed / total) * 100;
+      let pctElapsed = Math.max(0, Math.min(100, rawPctElapsed));
       
-      let color = 'var(--time-safari)';
-      if(pctLeft <= 30) color = 'var(--time-warning)';
-      if(pctLeft <= 10) color = 'var(--time-critical)';
-      if(pctLeft === 0) color = '#7f1d1d'; // Expired dark red
+      // Color: green when fresh, yellow when getting close, red when critical
+      let color = '#10b981'; // Green = safe
+      if(pctElapsed >= 50) color = '#f59e0b'; // Yellow = caution
+      if(pctElapsed >= 75) color = '#ef4444'; // Red = critical
+      if(pctElapsed >= 100) color = '#7f1d1d'; // Dark red = expired
 
       let daysLeft = remaining / 86400000;
       let text = '';
-      if(daysLeft < 0) text = 'Expired';
-      else if(daysLeft < 1) text = Math.round(daysLeft * 24) + ' hrs left';
+      if(daysLeft < 0) text = '🔴 Expired!';
+      else if(daysLeft < 1) text = '🔥 ' + Math.round(daysLeft * 24) + ' hrs left';
+      else if(daysLeft <= 3) text = '⚠️ ' + Math.round(daysLeft) + ' days left';
       else text = Math.round(daysLeft) + ' days left';
 
-      return { pctLeft, color, text };
+      return { pctElapsed, color, text };
     }
 
     function calculateProgressInfo(tasks) {
@@ -639,12 +642,12 @@
         }
 
         if(isLong) {
-          // Long Term: Show specific goal time above sprints
+          // Long Term: Show macro urgency bar above sprints
           contentHtml += `
             <div class="dual-bars" style="background:transparent; border:none; padding:0; margin-bottom:1rem;">
               <div class="bar-group">
-                <div class="bar-label-row"><span>Macro Goal Timeline</span> <span>${goalTime.text}</span></div>
-                <div class="bar-track"><div class="bar-fill time-fill" style="width: ${goalTime.pctLeft}%; background-color: ${goalTime.color}; opacity: 0.5;"></div></div>
+                <div class="bar-label-row"><span>Macro Urgency</span> <span>${goalTime.text}</span></div>
+                <div class="bar-track"><div class="bar-fill" style="width: ${goalTime.pctElapsed}%; background-color: ${goalTime.color}; opacity: 0.6; border-radius: 50px; height: 100%;"></div></div>
               </div>
             </div>
           `;
@@ -665,8 +668,8 @@
                 
                 <div class="dual-bars">
                   <div class="bar-group">
-                    <div class="bar-label-row"><span style="color:var(--time-safari)">Time Remaining</span> <span>${sTime.text}</span></div>
-                    <div class="bar-track"><div class="bar-fill time-fill" style="width: ${sTime.pctLeft}%; background-color: ${sTime.color};"></div></div>
+                    <div class="bar-label-row"><span style="color:#f59e0b">⏳ Urgency</span> <span>${sTime.text}</span></div>
+                    <div class="bar-track"><div class="bar-fill" style="width: ${sTime.pctElapsed}%; background-color: ${sTime.color}; border-radius: 50px; height: 100%;"></div></div>
                   </div>
                   <div class="bar-group">
                     <div class="bar-label-row"><span style="color:var(--accent)">Sprint Progress</span> <span>${sProg.text} Tasks</span></div>
@@ -689,8 +692,8 @@
           contentHtml += `
             <div class="dual-bars">
               <div class="bar-group">
-                <div class="bar-label-row"><span style="color:var(--time-safari)">Time Remaining</span> <span>${goalTime.text}</span></div>
-                <div class="bar-track"><div class="bar-fill time-fill" style="width: ${goalTime.pctLeft}%; background-color: ${goalTime.color};"></div></div>
+                <div class="bar-label-row"><span style="color:#f59e0b">⏳ Urgency (fills → deadline)</span> <span>${goalTime.text}</span></div>
+                <div class="bar-track"><div class="bar-fill" style="width: ${goalTime.pctElapsed}%; background-color: ${goalTime.color}; border-radius: 50px; height: 100%;"></div></div>
               </div>
               <div class="bar-group">
                 <div class="bar-label-row"><span style="color:var(--accent)">Goal Progress</span> <span>${prog.text} Tasks</span></div>
