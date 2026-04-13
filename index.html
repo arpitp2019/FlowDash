@@ -294,29 +294,42 @@
     }
 
     function gisLoaded() {
+      console.log("GIS Script Loaded");
       tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
         scope: SCOPES,
         callback: async (resp) => {
-          if (resp.error) return;
-          document.getElementById('sync-status').innerText = 'Synced ☁️';
-          document.getElementById('sync-status').style.color = 'var(--text-main)';
-          document.getElementById('btn-auth').style.display = 'none';
+          if (resp.error) {
+            console.error("Auth Error:", resp.error);
+            return;
+          }
+          console.log("Auth Successful");
+          document.getElementById('sync-status').innerText = 'Connected...ing';
           await findOrCreateSaveFile();
         }
       });
     }
 
     function handleAuthClick() {
+      if (!gapiInited) {
+        alert("Google Drive API is still initializing. Please wait 2-3 seconds.");
+        return;
+      }
       if (tokenClient === null) {
-        alert("Google API is still loading or failed to load. Please wait a moment and try again.");
+        alert("Google Login tool failed to load. Are you offline or using an ad-blocker?");
         return;
       }
       tokenClient.requestAccessToken({prompt: ''});
     }
 
     async function findOrCreateSaveFile() {
+      if (!gapiInited) {
+        console.warn("Retrying findOrCreateSaveFile in 500ms (GAPI not ready)");
+        setTimeout(findOrCreateSaveFile, 500);
+        return;
+      }
       try {
+        console.log("Searching for save file in AppData...");
         let res = await gapi.client.drive.files.list({
           spaces: 'appDataFolder', q: "name='smart_ledger_save.json'", fields: 'files(id)'
         });
@@ -343,8 +356,22 @@
           });
           let json = await fetchRes.json();
           driveFileId = json.id;
+          console.log("New save file created:", driveFileId);
         }
-      } catch (e) { console.error('Drive Load Error', e); }
+        
+        document.getElementById('sync-status').innerText = 'Synced ☁️';
+        document.getElementById('sync-status').style.color = 'var(--text-main)';
+        document.getElementById('btn-auth').style.display = 'none';
+        render();
+
+      } catch (e) { 
+        console.error('Drive Load Error', e);
+        if(e.status === 403) {
+          alert("Access Denied: Please check if this URL is added to 'Authorized JavaScript Origins' in Google Cloud Console.");
+        } else {
+          alert("Connection Error: Check the browser console (F12) for details.");
+        }
+      }
     }
 
     async function syncToDrive() {
