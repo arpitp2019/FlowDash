@@ -314,11 +314,13 @@
 </head>
 <body>
 
-  <!-- Top Global Dashboard Nav -->
-  <nav class="global-nav">
-    <a href="index.html" class="inactive">🎯 Goal Tracker</a>
-    <a href="#" class="active">🌱 HabitFlow AI</a>
-  </nav>
+  <header style="background: var(--bg-surface); border-bottom: 1px solid var(--accent-primary); padding: 1.25rem 2rem; position: sticky; top: 0; z-index: 50;">
+    <h1 style="font-family: var(--font-display); font-size: 1.8rem; background: linear-gradient(135deg, var(--accent-primary), #3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">🌱 HabitFlow AI</h1>
+    <nav style="display: flex; gap: 0.5rem; margin-top: 1rem; width: 100%; justify-content: flex-start; border-top: 1px solid var(--glass-border); padding-top: 1rem;">
+      <a href="index.html" style="color: var(--text-muted); text-decoration: none; padding: 0.4rem 1.2rem; border-radius: 50px; font-weight: 700; transition: all 0.2s; font-size: 0.85rem;" onmouseover="this.style.color='#f0f0ff'; this.style.background='rgba(255,255,255,0.05)';" onmouseout="this.style.color='var(--text-muted)'; this.style.background='transparent';">🎯 Goal Tracker</a>
+      <a href="habit-tracker.html" style="color: #000; text-decoration: none; padding: 0.4rem 1.2rem; border-radius: 50px; font-weight: 800; background: var(--accent-primary); box-shadow: 0 4px 15px rgba(0, 196, 180, 0.4); font-size: 0.85rem;">🌱 HabitFlow AI</a>
+    </nav>
+  </header>
 
   <!-- Onboarding -->
   <div id="onboarding-panel" style="display:none;">
@@ -517,6 +519,7 @@
           <option value="Fitness">Fitness</option>
           <option value="Mindfulness">Mindfulness</option>
           <option value="Finance">Finance</option>
+          <option value="Music">Music</option>
           <option value="Custom">Custom</option>
         </select>
       </div>
@@ -550,6 +553,7 @@
           <div class="icon-item" onclick="pickIcon(this, 'sun')"><i data-lucide="sun"></i></div>
           <div class="icon-item" onclick="pickIcon(this, 'heart')"><i data-lucide="heart"></i></div>
           <div class="icon-item" onclick="pickIcon(this, 'dollar-sign')"><i data-lucide="dollar-sign"></i></div>
+          <div class="icon-item" onclick="pickIcon(this, 'music')"><i data-lucide="music"></i></div>
         </div>
         <input type="hidden" id="h-icon" value="check-circle">
       </div>
