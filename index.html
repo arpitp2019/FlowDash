@@ -14,6 +14,7 @@
       --text-muted: #8888aa;
       --accent-goal: #7c3aed;
       --accent-habit: #00c4b4;
+      --accent-vault: #01696f;
       --font-body: 'Nunito', sans-serif;
       --font-display: 'Fredoka One', cursive;
     }
@@ -149,6 +150,7 @@
 
     .app-card.goal::before { background: linear-gradient(90deg, var(--accent-goal), #9333ea); }
     .app-card.habit::before { background: linear-gradient(90deg, var(--accent-habit), #3b82f6); }
+    .app-card.vault::before { background: linear-gradient(90deg, var(--accent-vault), #02878e); }
 
     .icon-wrapper {
       width: 80px;
@@ -167,6 +169,7 @@
 
     .goal .icon-wrapper { background: rgba(124, 58, 237, 0.1); color: var(--accent-goal); }
     .habit .icon-wrapper { background: rgba(0, 196, 180, 0.1); color: var(--accent-habit); }
+    .vault .icon-wrapper { background: rgba(1, 105, 111, 0.1); color: var(--accent-vault); }
 
     .app-card h3 {
       font-family: var(--font-display);
@@ -225,7 +228,12 @@
       color: white;
       box-shadow: 0 4px 15px rgba(0, 196, 180, 0.3);
     }
-
+    .vault .btn {
+      background: linear-gradient(135deg, var(--accent-vault), #02878e);
+      color: white;
+      box-shadow: 0 4px 15px rgba(1, 105, 111, 0.3);
+    }
+ drum
     footer {
       padding: 2rem;
       text-align: center;
@@ -248,6 +256,7 @@
       <a href="index.html" class="nav-link active">🏠 Home</a>
       <a href="goal-tracker.html" class="nav-link">🎯 Goals</a>
       <a href="habit-tracker.html" class="nav-link">🌱 Habits</a>
+      <a href="mindvault.html" class="nav-link">🧠 Vault</a>
     </nav>
   </header>
 
@@ -284,6 +293,20 @@
           <li>Read-Only Historical Data</li>
         </ul>
         <div class="btn">Launch Habits</div>
+      </a>
+
+      <!-- MindVault -->
+      <a href="mindvault.html" class="app-card vault">
+        <div class="icon-wrapper">🧠</div>
+        <h3>MindVault SRLJ</h3>
+        <p>Master complex subjects through the power of Spaced Repetition. Built for Java developers and Law students alike.</p>
+        <ul class="feature-list">
+          <li>SM-2 Spaced Repetition Logic</li>
+          <li>Forgetting Curve Forecasting</li>
+          <li>Daily Learning Journal</li>
+          <li>Analytics & Heatmaps</li>
+        </ul>
+        <div class="btn">Launch Vault</div>
       </a>
     </div>
   </main>
