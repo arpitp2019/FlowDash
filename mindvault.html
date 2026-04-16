@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MindVault — Spaced Repetition Journal</title>
+  <script src="auth.js"></script>
   <meta name="description" content="A personal spaced repetition learning journal powered by the Ebbinghaus Forgetting Curve.">
 
   <!-- Fonts -->
@@ -553,10 +554,19 @@
       <a href="habit-tracker.html" class="nav-pill">🌱 Habits</a>
       <a href="mindvault.html" class="nav-pill active">🧠 Vault</a>
     </nav>
-    <div class="header-right" style="width: 150px; display: flex; justify-content: flex-end;">
-      <!-- Symmetrical spacer -->
+    <div class="header-right" style="display: flex; align-items: center; gap: 1rem;">
+      <span id="user-display" style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted);"></span>
+      <button onclick="AuthService.logout()" class="nav-pill" style="border: 1px solid rgba(255,255,255,0.1); cursor: pointer; background: transparent; padding: 0.4rem 0.8rem;">Logout</button>
     </div>
   </header>
+
+  <script>
+    // Initialize user display
+    const user = AuthService.getCurrentUser();
+    if (user) {
+      document.getElementById('user-display').innerText = `Welcome, ${user.username}`;
+    }
+  </script>
 
 <div class="app-shell">
   <!-- SIDEBAR (Desktop) -->
