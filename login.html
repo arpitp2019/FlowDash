@@ -408,6 +408,10 @@
             
             try {
                 AuthService.loginWithGoogle(payload);
+                
+                // Immediately request Drive access as well
+                AuthService.Drive.authorize();
+                
                 showSuccess();
             } catch (err) {
                 console.error("Google Auth local error:", err);

@@ -942,7 +942,12 @@ let activeTopicDetailId = null;
 let journalSelectedDate = getLocalDateStr();
 
 // ── PERSISTENCE ──
-function save() { localStorage.setItem('mindvault_v2', JSON.stringify(state)); }
+function save(skipSync = false) { 
+  localStorage.setItem('mindvault_v2', JSON.stringify(state)); 
+  if (!skipSync) {
+    AuthService.Drive.sync('vault', state);
+  }
+}
 function load() {
   const raw = localStorage.getItem('mindvault_v2');
   if (raw) {
@@ -1838,7 +1843,7 @@ function checkNotification() {
 }
 
 // ── INIT ──
-function init() {
+async function init() {
   load();
   const savedTheme = localStorage.getItem('mv_theme') || 'dark';
   document.documentElement.dataset.theme = savedTheme;
@@ -1885,6 +1890,18 @@ function init() {
   updateTopbar();
   navigate('dashboard');
   lucide.createIcons();
+
+  // ── Drive Initialize and Sync ──
+  await AuthService.Drive.init();
+  if (AuthService.Drive.driveFileId) {
+    console.log("Drive Syncing for MindVault...");
+    const remoteData = await AuthService.Drive.sync('vault', state);
+    if (remoteData) {
+      state = remoteData;
+      save(true); // Save local without triggering another sync
+      navigate('dashboard'); // Refresh view
+    }
+  }
 
   // Periodic checks
   setInterval(checkNotification, 60000);

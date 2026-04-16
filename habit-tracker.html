@@ -409,10 +409,6 @@
       <a href="mindvault.html" class="nav-pill">🧠 Vault</a>
     </nav>
     <div class="header-right" style="display: flex; align-items: center; gap: 1rem;">
-      <div style="display:flex; align-items:center; gap:0.75rem;">
-        <span id="sync-status" style="font-size:0.8rem; font-weight:600; color:var(--text-muted);">Local Save</span>
-        <button id="btn-auth" class="btn btn-outline" style="padding:0.4rem 0.85rem; font-size:0.8rem; border-radius:12px; cursor:pointer;" onclick="handleAuthClick()">Connect Drive</button>
-      </div>
       <button onclick="AuthService.logout()" class="nav-pill" style="border: 1px solid rgba(255,255,255,0.1); cursor: pointer; background: transparent; padding: 0.4rem 0.8rem;">Logout</button>
     </div>
   </header>
@@ -724,16 +720,32 @@
     function getLocalDateStr(date = new Date()) {
       return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
     }
-    let todayStr = getLocalDateStr();
-
-    function init() {
-      const saved = localStorage.getItem('habitflow_state');
+    // === INIT ===
+    async function init() {
+      // 1. Load Local State
+      let saved = localStorage.getItem('habitflow_state');
       if(saved) {
         state = JSON.parse(saved);
-        if(!state.onboarded) showOnboarding();
-      } else {
-        showOnboarding();
+        if(!state.profile || !state.profile.name) state.profile = { name: "Explorer", avatar: "👤" };
       }
+      
+      updateUI();
+      if(window.location.hash.includes('today')) renderToday();
+      else if(window.location.hash.includes('grid')) renderGrid();
+      
+      // 2. Initialize Drive and Sync
+      await AuthService.Drive.init();
+      if (AuthService.Drive.driveFileId) {
+        console.log("Drive Syncing for Habits...");
+        const remoteData = await AuthService.Drive.sync('habits', state.habits);
+        if (remoteData) {
+          state.habits = remoteData;
+          saveState(true); // Save local without triggering another sync
+        }
+      }
+
+      // 3. Lucide icons
+      if(!state.onboarded) showOnboarding();
 
       setupRouting();
       updateUI();
@@ -1380,101 +1392,16 @@
       try { confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } }); } catch(e){} 
     }
 
-    // === GOOGLE DRIVE SYNC ===
-    async function gapiLoaded() {
-      gapi.load('client', initializeGapiClient);
-    }
-    async function initializeGapiClient() {
-      try {
-        await gapi.client.init({ apiKey: API_KEY, discoveryDocs: [DISCOVERY_DOC] });
-        gapiInited = true;
-      } catch (e) { console.error('GAPI Init Error', e); }
-    }
-    function gisLoaded() {
-      tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        callback: async (resp) => {
-          if (resp.error !== undefined) { throw (resp); }
-          console.log("Auth Successful");
-          state.isSynced = true;
-          document.getElementById('sync-status').innerText = 'Connected...ing';
-          await findOrCreateSaveFile();
-        }
-      });
-      if (state.isSynced) {
-        setTimeout(() => tokenClient.requestAccessToken({prompt: 'none'}), 1000);
+    function saveState(skipSync = false) {
+      localStorage.setItem('habitflow_state', JSON.stringify(state));
+      updateUI();
+      if (!skipSync) {
+        AuthService.Drive.sync('habits', state.habits);
       }
     }
-    function handleAuthClick() {
-      if (!gapiInited) return alert("Google Drive API is still initializing. Please wait 2-3 seconds.");
-      if (tokenClient === null) return alert("Google Login tool failed to load.");
-      tokenClient.requestAccessToken({prompt: ''});
-    }
-    async function findOrCreateSaveFile() {
-      if (!gapiInited) return setTimeout(findOrCreateSaveFile, 500);
-      try {
-        let res = await gapi.client.drive.files.list({
-          spaces: 'appDataFolder', q: "name='habitflow_save.json'", fields: 'files(id)'
-        });
-        if (res.result.files && res.result.files.length > 0) {
-          driveFileId = res.result.files[0].id;
-          let fileRes = await gapi.client.drive.files.get({ fileId: driveFileId, alt: 'media' });
-          if (fileRes.body) {
-            let remoteState = JSON.parse(fileRes.body);
-            if(remoteState.profile) {
-              state = remoteState;
-              saveState();
-            }
-          }
-        } else {
-          let metadata = { name: 'habitflow_save.json', parents: ['appDataFolder'] };
-          let file = new Blob([JSON.stringify(state)], {type: 'application/json'});
-          let formData = new FormData();
-          formData.append('metadata', new Blob([JSON.stringify(metadata)], {type: 'application/json'}));
-          formData.append('file', file);
-          let fetchRes = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-            method: 'POST',
-            headers: new Headers({'Authorization': 'Bearer ' + gapi.client.getToken().access_token}),
-            body: formData
-          });
-          let json = await fetchRes.json();
-          driveFileId = json.id;
-        }
-        document.getElementById('sync-status').innerText = 'Synced ☁️';
-        document.getElementById('sync-status').style.color = 'var(--text-main)';
-        document.getElementById('btn-auth').style.display = 'none';
-        updateUI();
-        if(window.location.hash.includes('today')) renderToday();
-        if(window.location.hash.includes('grid')) renderGrid();
-      } catch (e) { 
-        console.error('Drive Error', e);
-        if(e.status === 403) alert("Access Denied.");
-      }
-    }
-    window.syncToDrive = async function() {
-      const token = gapi.client.getToken();
-      if (!gapiInited || !driveFileId || !token || !token.access_token) return;
-      document.getElementById('sync-status').innerText = 'Syncing... ⌛';
-      try {
-        await fetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=media`, {
-          method: 'PATCH',
-          headers: new Headers({
-            'Authorization': 'Bearer ' + token.access_token,
-            'Content-Type': 'application/json'
-          }),
-          body: JSON.stringify(state)
-        });
-        document.getElementById('sync-status').innerText = 'Synced ☁️';
-      } catch(e) { document.getElementById('sync-status').innerText = 'Sync Error ⚠️'; }
-    }
-
-    // Start
-    window.onload = init;
   </script>
 
   <!-- Google Scripts (Loaded Last) -->
-  <script src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
-  <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+  <script src="https://apis.google.com/js/api.js"></script>
 </body>
 </html>
