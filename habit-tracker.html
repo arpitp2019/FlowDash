@@ -409,6 +409,7 @@
       <a href="mindvault.html" class="nav-pill">🧠 Vault</a>
     </nav>
     <div class="header-right" style="display: flex; align-items: center; gap: 1rem;">
+      <span id="user-display" style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted);"></span>
       <button onclick="AuthService.logout()" class="nav-pill" style="border: 1px solid rgba(255,255,255,0.1); cursor: pointer; background: transparent; padding: 0.4rem 0.8rem;">Logout</button>
     </div>
   </header>
@@ -478,14 +479,6 @@
         <a href="#settings" class="nav-item" data-view="settings">
           <i data-lucide="settings"></i> Settings
         </a>
-      </div>
-
-      <div class="user-mini-profile">
-        <div class="avatar-circ" id="ui-avatar">👤</div>
-        <div style="flex:1;">
-          <div style="font-weight:600; font-size:0.9rem;" id="ui-name">User</div>
-          <div style="font-size:0.75rem; color:var(--text-muted);" id="ui-level">Beginner</div>
-        </div>
       </div>
 
       <div style="margin-top: 2.5rem; border-top: 1px solid var(--glass-border); padding-top: 1.5rem;">
@@ -719,6 +712,13 @@
     }
     // === INIT ===
     async function init() {
+      // Initialize user display
+      const user = AuthService.getCurrentUser();
+      console.log("Current user detected:", user);
+      if (user && document.getElementById('user-display')) {
+        document.getElementById('user-display').innerText = `Welcome, ${user.username}`;
+      }
+
       // 1. Load Local State
       let saved = localStorage.getItem('habitflow_state');
       if(saved) {

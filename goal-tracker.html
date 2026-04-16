@@ -368,6 +368,7 @@
       <a href="mindvault.html" class="nav-pill">🧠 Vault</a>
     </nav>
     <div class="header-right" style="display: flex; align-items: center; gap: 1rem;">
+      <span id="user-display" style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted);"></span>
       <button onclick="AuthService.logout()" class="nav-pill" style="border: 1px solid rgba(255,255,255,0.1); cursor: pointer; background: transparent; padding: 0.4rem 0.8rem;">Logout</button>
     </div>
   </header>
@@ -485,6 +486,12 @@
 
     // --- INIT ---
     async function init() {
+      // Initialize user display
+      const user = AuthService.getCurrentUser();
+      if (user) {
+        document.getElementById('user-display').innerText = `Welcome, ${user.username}`;
+      }
+
       // 1. Load local state first
       const saved = localStorage.getItem('smart_ledger_state');
       if (saved) { 
@@ -495,20 +502,22 @@
       
       render();
 
-      // 2. Initialize Drive and Sync
-      await AuthService.Drive.init();
-      if (AuthService.Drive.driveFileId) {
-        console.log("Drive Syncing for Goals...");
-        const remoteData = await AuthService.Drive.sync('goals', state.goals);
-        if (remoteData) {
-          state.goals = remoteData;
-          saveLocal(true); // Save local without triggering another sync
-        }
-      }
-
+      // Start countdown refreshes immediately
       setInterval(() => {
-        // Countdown ticks
-      }, 300000);
+        // Countdown ticks handled by setupCountdowns calls inside render
+      }, 60000);
+
+      // 2. Initialize Drive and Sync in background
+      AuthService.Drive.init().then(async () => {
+        if (AuthService.Drive.driveFileId) {
+          console.log("Drive Syncing for Goals...");
+          const remoteData = await AuthService.Drive.sync('goals', state.goals);
+          if (remoteData) {
+            state.goals = remoteData;
+            saveLocal(true); // Save local without triggering another sync
+          }
+        }
+      });
     }
 
     // --- UTILS ---
