@@ -414,14 +414,13 @@
                 return;
             }
 
-            try {
-                // Immediately request Drive access as well
-                await AuthService.Drive.authorize();
-            } catch (err) {
-                console.warn("Google Drive setup finished with an issue:", err);
-            }
-
             showSuccess();
+
+            // Keep Drive setup running in the background so the app opens even if
+            // the consent flow is delayed or the browser navigation happens fast.
+            AuthService.Drive.authorize().catch((err) => {
+                console.warn("Google Drive setup finished with an issue:", err);
+            });
         }
 
         function decodeJwtResponse(token) {
@@ -437,7 +436,7 @@
         function showSuccess() {
             document.getElementById('success-overlay').style.display = 'flex';
             setTimeout(() => {
-                window.location.href = 'index.html';
+                window.location.href = new URL('index.html', window.location.href).href;
             }, 1000);
         }
     </script>
