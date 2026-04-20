@@ -14,6 +14,11 @@ Frontend dev server (proxies to backend):
 Backend:
 - `backend\\mvnw.cmd -f backend/pom.xml spring-boot:run`
 
+## GitHub Pages
+GitHub Pages can host only the frontend (static). The Spring Boot backend must be hosted separately (Render/Railway/Fly.io/etc.).
+
+To point the Pages frontend at your backend, set `VITE_API_BASE` at build time (or update the workflow to inject it).
+
 ## Build
 - `npm --prefix frontend run build`
 - `backend\\mvnw.cmd -f backend/pom.xml -DskipTests package`

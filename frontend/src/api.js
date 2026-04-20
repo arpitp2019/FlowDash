@@ -4,13 +4,15 @@ const jsonHeaders = {
 
 const safeMethods = new Set(['GET', 'HEAD', 'OPTIONS']);
 
+const apiBase = normalizeBase(import.meta.env.VITE_API_BASE);
+
 let csrfTokenState = null;
 let csrfTokenPromise = null;
 
 async function request(path, options = {}) {
   const method = options.method || 'GET';
   const csrfHeaders = await csrfHeadersFor(method);
-  const response = await fetch(path, {
+  const response = await fetch(apiBase + path, {
     credentials: 'include',
     ...options,
     headers: {
@@ -92,7 +94,7 @@ export async function apiDeleteDecisionThread(threadId) {
 
 export async function streamDecisionChat(payload, onChunk) {
   const csrfHeaders = await csrfHeadersFor('POST');
-  const response = await fetch('/api/ai/chat', {
+  const response = await fetch(apiBase + '/api/ai/chat', {
     method: 'POST',
     credentials: 'include',
     headers: {
@@ -158,6 +160,17 @@ function tryParseJson(value) {
   } catch {
     return { content: value };
   }
+}
+
+function normalizeBase(value) {
+  if (!value) {
+    return '';
+  }
+  const trimmed = String(value).trim();
+  if (!trimmed) {
+    return '';
+  }
+  return trimmed.endsWith('/') ? trimmed.slice(0, -1) : trimmed;
 }
 
 async function csrfHeadersFor(method) {
