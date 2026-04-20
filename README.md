@@ -18,16 +18,9 @@ Backend:
 
 Deploy the whole app as one Render web service with PostgreSQL:
 
-1. Create a new Render PostgreSQL database.
-2. Create a new Render Web Service from this repo and let Render use the root `Dockerfile`.
-3. Set the service environment variables:
-   - `SPRING_PROFILES_ACTIVE=prod`
-   - `FLOWDASH_DB_URL=jdbc:postgresql://<your-render-db-host>:5432/<your-render-db-name>`
-   - `FLOWDASH_DB_USERNAME=<your-render-db-user>`
-   - `FLOWDASH_DB_PASSWORD=<your-render-db-password>`
-   - `GOOGLE_CLIENT_ID=<your-google-client-id>`
-   - `GOOGLE_CLIENT_SECRET=<your-google-client-secret>`
-   - any `FLOWDASH_AI_*` keys you use
+1. Connect the repo to a Render Blueprint from [`render.yaml`](./render.yaml).
+2. Let Render create or sync the `flowdash-web` service and `flowdash-db` Postgres database.
+3. Fill the prompted secret env vars: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and any `FLOWDASH_AI_*` keys you use.
 4. Add this Google OAuth redirect URI:
    - `https://<your-render-service>.onrender.com/login/oauth2/code/google`
 5. Use the Render service URL as the production app. GitHub Pages can stay as a frontend-only preview, but it is not the live deployment target.
@@ -37,7 +30,7 @@ The app builds the React frontend into the Spring Boot static resources during t
 ## CI/CD
 
 - GitHub Actions runs `frontend` lint/smoke checks and `backend` tests on every pull request and push to `main`.
-- Render should be set to auto-deploy from `main`, so merges that pass CI flow straight into production.
+- Render should be set to auto-deploy from `main`, and the Blueprint uses `autoDeployTrigger: checksPass` so deploys wait for passing checks.
 - GitHub Pages can stay enabled as a frontend-only preview, but the Render URL is the live app.
 
 ## GitHub Pages preview

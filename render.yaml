@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: flowdash-web
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    branch: main
+    autoDeployTrigger: checksPass
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: FLOWDASH_DB_URL
+        fromDatabase:
+          name: flowdash-db
+          property: connectionString
+      - key: FLOWDASH_DB_USERNAME
+        fromDatabase:
+          name: flowdash-db
+          property: user
+      - key: FLOWDASH_DB_PASSWORD
+        fromDatabase:
+          name: flowdash-db
+          property: password
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: FLOWDASH_AI_PROVIDER
+        sync: false
+      - key: FLOWDASH_AI_MODEL
+        sync: false
+      - key: FLOWDASH_AI_BASE_URL
+        sync: false
+      - key: FLOWDASH_AI_MAX_RESPONSE_CHARS
+        sync: false
+
+databases:
+  - name: flowdash-db
+    plan: free
