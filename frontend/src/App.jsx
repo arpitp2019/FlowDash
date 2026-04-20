@@ -124,7 +124,7 @@ const decisionTemplates = {
 function App() {
   const [user, setUser] = useState(undefined);
   const [bootError, setBootError] = useState('');
-  const routerBasename = import.meta.env.BASE_URL || '/';
+  const routerBasename = normalizeRouterBasename(import.meta.env.BASE_URL);
 
   useEffect(() => {
     apiGetMe()
@@ -177,6 +177,14 @@ function App() {
       </Routes>
     </BrowserRouter>
   );
+}
+
+function normalizeRouterBasename(value) {
+  const base = value || '/';
+  if (base === '/') {
+    return '/';
+  }
+  return base.replace(/\/$/, '');
 }
 
 function AppShell({ user, onLogout }) {

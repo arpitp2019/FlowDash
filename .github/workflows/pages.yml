@@ -30,11 +30,13 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      - name: Build (Pages)
+      - name: Install Playwright browser
         working-directory: frontend
-        env:
-          GITHUB_PAGES: "true"
-        run: npm run build
+        run: npx playwright install --with-deps chromium
+
+      - name: Build and smoke test (Pages)
+        working-directory: frontend
+        run: npm run smoke:pages
 
       - uses: actions/upload-pages-artifact@v3
         with:
@@ -49,4 +51,3 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
-
