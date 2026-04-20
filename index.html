@@ -18,6 +18,7 @@
       --accent-goal: #8b5cf6;
       --accent-habit: #4f98a3;
       --accent-vault: #01696f;
+      --accent-decision: #f59e0b;
       --font-body: 'Satoshi', sans-serif;
       --font-display: 'Boska', serif;
     }
@@ -164,6 +165,7 @@
     .app-card.goal::before { background: linear-gradient(90deg, var(--accent-goal), #9333ea); }
     .app-card.habit::before { background: linear-gradient(90deg, var(--accent-habit), #3b82f6); }
     .app-card.vault::before { background: linear-gradient(90deg, var(--accent-vault), #02878e); }
+    .app-card.decision::before { background: linear-gradient(90deg, var(--accent-decision), #f97316); }
 
     .icon-wrapper {
       width: 80px;
@@ -183,6 +185,7 @@
     .goal .icon-wrapper { background: rgba(124, 58, 237, 0.1); color: var(--accent-goal); }
     .habit .icon-wrapper { background: rgba(0, 196, 180, 0.1); color: var(--accent-habit); }
     .vault .icon-wrapper { background: rgba(1, 105, 111, 0.1); color: var(--accent-vault); }
+    .decision .icon-wrapper { background: rgba(245, 158, 11, 0.12); color: var(--accent-decision); }
 
     .app-card h3 {
       font-family: var(--font-display);
@@ -219,6 +222,7 @@
       color: var(--accent-goal);
     }
     .habit .feature-list li::before { color: var(--accent-habit); }
+    .decision .feature-list li::before { color: var(--accent-decision); }
 
     .btn {
       margin-top: auto;
@@ -246,6 +250,11 @@
       color: white;
       box-shadow: 0 4px 15px rgba(1, 105, 111, 0.3);
     }
+    .decision .btn {
+      background: linear-gradient(135deg, var(--accent-decision), #f97316);
+      color: #1f1300;
+      box-shadow: 0 4px 15px rgba(245, 158, 11, 0.28);
+    }
     footer {
       padding: 2rem;
       text-align: center;
@@ -271,6 +280,7 @@
       <a href="goal-tracker.html" class="nav-pill">🎯 Goals</a>
       <a href="habit-tracker.html" class="nav-pill">🌱 Habits</a>
       <a href="mindvault.html" class="nav-pill">🧠 Vault</a>
+      <a href="decision-coach.html" class="nav-pill">🧭 Decision</a>
     </nav>
     <div class="header-right" style="display: flex; align-items: center; gap: 1rem;">
       <span id="user-display" style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted);"></span>
@@ -333,6 +343,20 @@
           <li>Analytics & Heatmaps</li>
         </ul>
         <div class="btn">Launch Vault</div>
+      </a>
+
+      <!-- Decision Coach -->
+      <a href="decision-coach.html" class="app-card decision">
+        <div class="icon-wrapper">🧭</div>
+        <h3>Decision Coach AI</h3>
+        <p>Work through hard choices with first principles, inversion, second order thinking, and the models from <em>The Decision Book</em>.</p>
+        <ul class="feature-list">
+          <li>Chat with Thinking Frameworks</li>
+          <li>Book-Inspired Decision Models</li>
+          <li>Model Switcher for Cheap LLMs</li>
+          <li>Per-User Decision History</li>
+        </ul>
+        <div class="btn">Launch Decisions</div>
       </a>
     </div>
   </main>

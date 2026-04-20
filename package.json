@@ -1,0 +1,10 @@
+{
+  "name": "flowdash",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FlowDash productivity suite with decision coach relay",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  }
+}

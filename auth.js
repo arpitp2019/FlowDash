@@ -22,6 +22,16 @@ const cloneJSON = (value) => {
   return JSON.parse(JSON.stringify(value));
 };
 
+const createDefaultDriveState = () => ({
+  goals: [],
+  habits: [],
+  vault: [],
+  decision: {
+    threads: [],
+    settings: {}
+  }
+});
+
 const safeParseJSON = (raw, fallback) => {
   if (raw === null || raw === undefined) return cloneJSON(fallback);
   try {
@@ -231,7 +241,7 @@ const AuthService = {
               });
               console.log("Drive GIS Ready");
               
-              // Auto-reconnect if token exists
+            // Auto-reconnect if token exists
               const savedToken = localStorage.getItem('flowdash_drive_token');
               if (savedToken) {
                 gapi.client.setToken({ access_token: savedToken });
@@ -301,7 +311,7 @@ const AuthService = {
           this.driveFileId = res.result.files[0].id;
         } else {
           let metadata = { name: 'flowdash_suite_sync.json', parents: ['appDataFolder'] };
-          let file = new Blob([JSON.stringify({ goals:[], habits:[], vault:[] })], {type: 'application/json'});
+          let file = new Blob([JSON.stringify(createDefaultDriveState())], {type: 'application/json'});
           let formData = new FormData();
           formData.append('metadata', new Blob([JSON.stringify(metadata)], {type: 'application/json'}));
           formData.append('file', file);
@@ -331,9 +341,14 @@ const AuthService = {
             // Read the freshest remote snapshot immediately before patching.
             const res = await gapi.client.drive.files.get({ fileId: this.driveFileId, alt: 'media' });
             const rawBody = res && typeof res.body === 'string' ? res.body : '';
-            let fullState = rawBody ? JSON.parse(rawBody) : { goals: [], habits: [], vault: [] };
+            let fullState = rawBody ? JSON.parse(rawBody) : createDefaultDriveState();
             if (!fullState || typeof fullState !== 'object') {
-              fullState = { goals: [], habits: [], vault: [] };
+              fullState = createDefaultDriveState();
+            } else {
+              fullState = {
+                ...createDefaultDriveState(),
+                ...fullState
+              };
             }
 
             fullState[key] = payload;
