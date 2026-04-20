@@ -2,9 +2,14 @@
   "name": "flowdash",
   "version": "1.0.0",
   "private": true,
-  "description": "FlowDash productivity suite with decision coach relay",
+  "description": "FlowDash monorepo with a Spring Boot backend and React frontend",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js"
+    "start": "npm --prefix frontend run dev",
+    "dev": "npm --prefix frontend run dev",
+    "frontend:dev": "npm --prefix frontend run dev",
+    "frontend:build": "npm --prefix frontend run build",
+    "backend:run": "backend\\mvnw.cmd -f backend/pom.xml spring-boot:run",
+    "backend:test": "backend\\mvnw.cmd -f backend/pom.xml test",
+    "backend:build": "backend\\mvnw.cmd -f backend/pom.xml -DskipTests package"
   }
 }

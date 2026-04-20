@@ -1,0 +1,109 @@
+create table app_user (
+    id bigint not null auto_increment,
+    email varchar(255) not null,
+    display_name varchar(255) not null,
+    password_hash varchar(255),
+    oauth_provider varchar(50) not null,
+    oauth_subject varchar(255),
+    role varchar(50) not null,
+    created_at datetime(6) not null,
+    updated_at datetime(6) not null,
+    primary key (id),
+    constraint uk_app_user_email unique (email),
+    constraint uk_app_user_provider_subject unique (oauth_provider, oauth_subject)
+);
+
+create table goal_item (
+    id bigint not null auto_increment,
+    user_id bigint not null,
+    title varchar(255) not null,
+    description text,
+    status varchar(50) not null,
+    priority integer not null,
+    due_date date,
+    created_at datetime(6) not null,
+    updated_at datetime(6) not null,
+    primary key (id),
+    constraint fk_goal_user foreign key (user_id) references app_user(id)
+);
+
+create table habit_item (
+    id bigint not null auto_increment,
+    user_id bigint not null,
+    title varchar(255) not null,
+    cadence varchar(50) not null,
+    target_count integer not null,
+    streak integer not null,
+    completed_count integer not null,
+    notes text,
+    archived bit(1) not null,
+    created_at datetime(6) not null,
+    updated_at datetime(6) not null,
+    primary key (id),
+    constraint fk_habit_user foreign key (user_id) references app_user(id)
+);
+
+create table vault_entry (
+    id bigint not null auto_increment,
+    user_id bigint not null,
+    entry_type varchar(50) not null,
+    title varchar(255) not null,
+    content text not null,
+    tags varchar(1000),
+    favorite bit(1) not null,
+    created_at datetime(6) not null,
+    updated_at datetime(6) not null,
+    primary key (id),
+    constraint fk_vault_user foreign key (user_id) references app_user(id)
+);
+
+create table decision_thread (
+    id bigint not null auto_increment,
+    user_id bigint not null,
+    title varchar(255) not null,
+    summary text,
+    provider_key varchar(50) not null,
+    provider_model varchar(255) not null,
+    status varchar(50) not null,
+    memo_generated_at datetime(6),
+    last_active_at datetime(6) not null,
+    created_at datetime(6) not null,
+    updated_at datetime(6) not null,
+    primary key (id),
+    constraint fk_decision_user foreign key (user_id) references app_user(id)
+);
+
+create table decision_message (
+    id bigint not null auto_increment,
+    thread_id bigint not null,
+    role varchar(50) not null,
+    tab_key varchar(80) not null,
+    content text not null,
+    model varchar(255),
+    created_at datetime(6) not null,
+    primary key (id),
+    constraint fk_decision_message_thread foreign key (thread_id) references decision_thread(id)
+);
+
+create table ai_provider_setting (
+    id bigint not null auto_increment,
+    user_id bigint,
+    provider_key varchar(50) not null,
+    provider_label varchar(100) not null,
+    model_name varchar(255) not null,
+    base_url varchar(1000),
+    enabled bit(1) not null,
+    default_selected bit(1) not null,
+    temperature decimal(4,2) not null,
+    created_at datetime(6) not null,
+    updated_at datetime(6) not null,
+    primary key (id),
+    constraint fk_ai_provider_user foreign key (user_id) references app_user(id)
+);
+
+create index idx_goal_user on goal_item(user_id);
+create index idx_habit_user on habit_item(user_id);
+create index idx_vault_user on vault_entry(user_id);
+create index idx_decision_user on decision_thread(user_id);
+create index idx_decision_message_thread on decision_message(thread_id);
+create index idx_ai_provider_user on ai_provider_setting(user_id);
