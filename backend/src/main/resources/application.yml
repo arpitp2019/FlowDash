@@ -1,0 +1,52 @@
+spring:
+  application:
+    name: flowdash
+  datasource:
+    url: ${FLOWDASH_DB_URL:jdbc:mysql://localhost:3306/flowdash?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
+    username: ${FLOWDASH_DB_USERNAME:flowdash}
+    password: ${FLOWDASH_DB_PASSWORD:flowdash}
+    driver-class-name: ${FLOWDASH_DB_DRIVER:com.mysql.cj.jdbc.Driver}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:}
+            client-secret: ${GOOGLE_CLIENT_SECRET:}
+            scope:
+              - openid
+              - profile
+              - email
+        provider:
+          google:
+            issuer-uri: https://accounts.google.com
+  mvc:
+    problemdetails:
+      enabled: true
+
+server:
+  port: ${PORT:8080}
+  forward-headers-strategy: framework
+
+flowdash:
+  ai:
+    provider: ${FLOWDASH_AI_PROVIDER:mock}
+    model: ${FLOWDASH_AI_MODEL:flowdash-mock}
+    base-url: ${FLOWDASH_AI_BASE_URL:}
+    max-response-chars: ${FLOWDASH_AI_MAX_RESPONSE_CHARS:8000}
+
+logging:
+  level:
+    org.springframework.security: INFO
+    com.flowdash: INFO

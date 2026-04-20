@@ -1,0 +1,15 @@
+{
+  "name": "flowdash",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FlowDash monorepo with a Spring Boot backend and React frontend",
+  "scripts": {
+    "start": "backend\\mvnw.cmd -f backend/pom.xml spring-boot:run",
+    "dev": "npm --prefix frontend run dev",
+    "frontend:dev": "npm --prefix frontend run dev",
+    "frontend:build": "npm --prefix frontend run build",
+    "backend:run": "backend\\mvnw.cmd -f backend/pom.xml spring-boot:run",
+    "backend:test": "backend\\mvnw.cmd -f backend/pom.xml test",
+    "backend:build": "backend\\mvnw.cmd -f backend/pom.xml -DskipTests package"
+  }
+}
