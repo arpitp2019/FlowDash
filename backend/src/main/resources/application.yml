@@ -2,21 +2,21 @@ spring:
   application:
     name: flowdash
   datasource:
-    url: ${FLOWDASH_DB_URL:jdbc:mysql://localhost:3306/flowdash?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC}
-    username: ${FLOWDASH_DB_USERNAME:flowdash}
-    password: ${FLOWDASH_DB_PASSWORD:flowdash}
-    driver-class-name: ${FLOWDASH_DB_DRIVER:com.mysql.cj.jdbc.Driver}
+    url: ${FLOWDASH_DB_URL:jdbc:h2:mem:flowdash;MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_UPPER=false}
+    username: ${FLOWDASH_DB_USERNAME:sa}
+    password: ${FLOWDASH_DB_PASSWORD:sa}
+    driver-class-name: ${FLOWDASH_DB_DRIVER:org.h2.Driver}
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: validate
+      ddl-auto: create-drop
     properties:
       hibernate:
         format_sql: true
         jdbc:
           time_zone: UTC
   flyway:
-    enabled: true
+    enabled: false
   security:
     oauth2:
       client:

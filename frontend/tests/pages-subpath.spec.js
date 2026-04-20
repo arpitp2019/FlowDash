@@ -45,7 +45,7 @@ test('renders the login screen after root auth redirect under the Pages subpath'
   const errors = captureUnexpectedErrors(page);
 
   await mockSignedOutSession(page);
-  await page.goto('./');
+  await page.goto('/FlowDash/');
   await expect(page).toHaveURL(/\/FlowDash\/login$/);
   await expectLoginCard(page);
 
@@ -56,7 +56,7 @@ test('renders the login route directly under the Pages subpath', async ({ page }
   const errors = captureUnexpectedErrors(page);
 
   await mockSignedOutSession(page);
-  await page.goto('./login');
+  await page.goto('/FlowDash/login');
   await expect(page).toHaveURL(/\/FlowDash\/login$/);
   await expectLoginCard(page);
 

@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: ${FLOWDASH_DB_URL:jdbc:postgresql://localhost:5432/flowdash}
+    username: ${FLOWDASH_DB_USERNAME:flowdash}
+    password: ${FLOWDASH_DB_PASSWORD:flowdash}
+    driver-class-name: ${FLOWDASH_DB_DRIVER:org.postgresql.Driver}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true

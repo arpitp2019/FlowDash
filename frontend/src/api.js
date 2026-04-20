@@ -92,6 +92,16 @@ export async function apiDeleteDecisionThread(threadId) {
   return request(`/api/decisions/${threadId}`, { method: 'DELETE', headers: {} });
 }
 
+export function getGoogleAuthUrl() {
+  if (apiBase) {
+    return `${apiBase}/oauth2/authorization/google`;
+  }
+  if (typeof window !== 'undefined' && window.location.hostname.endsWith('github.io')) {
+    return '';
+  }
+  return '/oauth2/authorization/google';
+}
+
 export async function streamDecisionChat(payload, onChunk) {
   const csrfHeaders = await csrfHeadersFor('POST');
   const response = await fetch(apiBase + '/api/ai/chat', {

@@ -14,12 +14,32 @@ Frontend dev server (proxies to backend):
 Backend:
 - `backend\\mvnw.cmd -f backend/pom.xml spring-boot:run`
 
-## GitHub Pages
-GitHub Pages can host only the frontend (static). The Spring Boot backend must be hosted separately (Render/Railway/Fly.io/etc.).
+## Production on Render
 
-To point the Pages frontend at your backend, set `VITE_API_BASE` at build time (or update the workflow to inject it).
+Deploy the whole app as one Render web service with PostgreSQL:
+
+1. Create a new Render PostgreSQL database.
+2. Create a new Render Web Service from this repo and let Render use the root `Dockerfile`.
+3. Set the service environment variables:
+   - `SPRING_PROFILES_ACTIVE=prod`
+   - `FLOWDASH_DB_URL=jdbc:postgresql://<your-render-db-host>:5432/<your-render-db-name>`
+   - `FLOWDASH_DB_USERNAME=<your-render-db-user>`
+   - `FLOWDASH_DB_PASSWORD=<your-render-db-password>`
+   - `GOOGLE_CLIENT_ID=<your-google-client-id>`
+   - `GOOGLE_CLIENT_SECRET=<your-google-client-secret>`
+   - any `FLOWDASH_AI_*` keys you use
+4. Add this Google OAuth redirect URI:
+   - `https://<your-render-service>.onrender.com/login/oauth2/code/google`
+5. Use the Render service URL as the production app. GitHub Pages can stay as a frontend-only preview, but it is not the live deployment target.
+
+The app builds the React frontend into the Spring Boot static resources during the Docker build, so the deployed service stays same-origin and session auth works from any device.
+
+## GitHub Pages preview
+
+GitHub Pages can still host the frontend-only preview. If you use it, set `VITE_API_BASE` at build time so the frontend points at a separate backend.
 
 ## Build
 - `npm --prefix frontend run build`
 - `backend\\mvnw.cmd -f backend/pom.xml -DskipTests package`
+- `npm run build:render`
 

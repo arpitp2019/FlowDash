@@ -12,6 +12,7 @@ import {
   apiLogout,
   apiRegister,
   apiUpdate,
+  getGoogleAuthUrl,
   streamDecisionChat
 } from './api';
 
@@ -248,7 +249,7 @@ function DashboardPage() {
         </div>
         <div className="hero-stat">
           <span>Backend-driven</span>
-          <strong>MySQL + Spring Boot + React</strong>
+          <strong>PostgreSQL + Spring Boot + React</strong>
         </div>
       </div>
 
@@ -409,7 +410,7 @@ function CollectionPage({ config }) {
         <form className="panel form-panel" onSubmit={submit}>
           <div className="panel-header">
             <h3>{editingId ? 'Edit item' : 'Create item'}</h3>
-            <span className="muted">Stored in MySQL</span>
+            <span className="muted">Stored in the backend database</span>
           </div>
 
           {config.fields.map((field) => (
@@ -622,7 +623,7 @@ function DecisionCoachPage() {
           <div className="panel">
             <div className="panel-header">
               <h3>Ask the coach</h3>
-              <span className="muted">Stored per user in MySQL</span>
+              <span className="muted">Stored per user in the backend database</span>
             </div>
 
             <textarea
@@ -663,6 +664,7 @@ function LoginPage({ onSignedIn, bootError, setBootError }) {
   const [form, setForm] = useState({ email: '', displayName: '', password: '' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const googleAuthUrl = getGoogleAuthUrl();
 
   const submit = async (event) => {
     event.preventDefault();
@@ -749,9 +751,17 @@ function LoginPage({ onSignedIn, bootError, setBootError }) {
 
         <div className="divider">or</div>
 
-        <a className="button secondary full" href="/oauth2/authorization/google">
-          {mode === 'register' ? 'Sign up with Google' : 'Continue with Google'}
-        </a>
+        {googleAuthUrl ? (
+          <a className="button secondary full" href={googleAuthUrl}>
+            {mode === 'register' ? 'Sign up with Google' : 'Continue with Google'}
+          </a>
+        ) : (
+          <button className="button secondary full" type="button" disabled>
+            Google signup needs the backend
+          </button>
+        )}
+
+        {!googleAuthUrl ? <div className="notice">Deploy the Spring backend and set `VITE_API_BASE` to enable Google signup.</div> : null}
 
         {(error || bootError) && <div className="notice error">{error || bootError}</div>}
       </div>

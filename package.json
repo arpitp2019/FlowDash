@@ -9,6 +9,7 @@
     "frontend:dev": "npm --prefix frontend run dev",
     "frontend:build": "npm --prefix frontend run build",
     "frontend:smoke:pages": "npm --prefix frontend run smoke:pages",
+    "build:render": "npm --prefix frontend run build && backend\\mvnw.cmd -f backend/pom.xml -DskipTests package",
     "backend:run": "backend\\mvnw.cmd -f backend/pom.xml spring-boot:run",
     "backend:test": "backend\\mvnw.cmd -f backend/pom.xml test",
     "backend:build": "backend\\mvnw.cmd -f backend/pom.xml -DskipTests package"

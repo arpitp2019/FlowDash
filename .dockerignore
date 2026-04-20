@@ -1,0 +1,10 @@
+.git
+.github
+backend/target
+frontend/node_modules
+frontend/dist
+frontend/test-results
+legacy
+scripts
+README.md
+*.log
