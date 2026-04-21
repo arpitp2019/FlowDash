@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BrowserRouter, NavLink, Navigate, Outlet, Route, Routes, useNavigate } from 'react-router-dom';
 import {
   apiCreate,
@@ -15,6 +15,7 @@ import {
   getGoogleAuthUrl,
   streamDecisionChat
 } from './api';
+import MindVaultPage from './MindVaultPage';
 
 const navItems = [
   { path: '/', label: 'Home', icon: '◌' },
@@ -87,31 +88,6 @@ const collectionConfigs = {
       archived: false
     }
   },
-  vault: {
-    title: 'MindVault',
-    subtitle: 'Capture notes, references, and decisions.',
-    resource: '/api/vault',
-    emptyLabel: 'No vault entries yet.',
-    fields: [
-      { key: 'title', label: 'Title', type: 'text' },
-      { key: 'content', label: 'Content', type: 'textarea' },
-      {
-        key: 'entryType',
-        label: 'Type',
-        type: 'select',
-        options: ['NOTE', 'IDEA', 'REFERENCE', 'TASK', 'DECISION']
-      },
-      { key: 'tags', label: 'Tags', type: 'text' },
-      { key: 'favorite', label: 'Favorite', type: 'checkbox' }
-    ],
-    defaults: {
-      title: '',
-      content: '',
-      entryType: 'NOTE',
-      tags: '',
-      favorite: false
-    }
-  }
 };
 
 const decisionTemplates = {
@@ -172,7 +148,7 @@ function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/goals" element={<CollectionPage config={collectionConfigs.goals} />} />
           <Route path="/habits" element={<CollectionPage config={collectionConfigs.habits} />} />
-          <Route path="/vault" element={<CollectionPage config={collectionConfigs.vault} />} />
+          <Route path="/vault" element={<MindVaultPage />} />
           <Route path="/decision" element={<DecisionCoachPage />} />
         </Route>
       </Routes>
@@ -231,7 +207,7 @@ function DashboardPage() {
     () => [
       { title: 'Goals', path: '/goals', description: 'Track the few outcomes that matter most.' },
       { title: 'Habits', path: '/habits', description: 'Keep steady routines visible and measurable.' },
-      { title: 'MindVault', path: '/vault', description: 'Store notes, references, and decisions safely.' },
+      { title: 'MindVault', path: '/vault', description: 'Plan subjects, sprints, and daily reviews.' },
       { title: 'Decision Coach', path: '/decision', description: 'Think in frameworks and get a final recommendation.' }
     ],
     []
@@ -447,23 +423,19 @@ function DecisionCoachPage() {
   const [working, setWorking] = useState(false);
   const [error, setError] = useState('');
 
-  const loadThreads = async () => {
+  const loadThreads = useCallback(async () => {
     const data = await apiListDecisionThreads();
     setThreads(data);
-    if (!activeThreadId && data.length > 0) {
-      setActiveThreadId(data[0].id);
-    }
-  };
+    setActiveThreadId((current) => current || data[0]?.id || null);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
-    apiListDecisionThreads()
-      .then((data) => {
-        if (cancelled) {
-          return;
+    loadThreads()
+      .catch(() => {
+        if (!cancelled) {
+          setThreads([]);
         }
-        setThreads(data);
-        setActiveThreadId((current) => current || data[0]?.id || null);
       })
       .finally(() => {
         if (!cancelled) {
@@ -473,7 +445,7 @@ function DecisionCoachPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadThreads]);
 
   useEffect(() => {
     if (!activeThreadId) {

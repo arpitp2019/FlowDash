@@ -76,6 +76,74 @@ export function apiDelete(resource, id) {
   return request(`${resource}/${id}`, { method: 'DELETE', headers: {} });
 }
 
+export async function apiMindVaultOverview() {
+  return request('/api/mindvault/overview', { method: 'GET', headers: {} });
+}
+
+export async function apiMindVaultAnalytics() {
+  return request('/api/mindvault/analytics', { method: 'GET', headers: {} });
+}
+
+export async function apiMindVaultStats() {
+  return request('/api/mindvault/stats', { method: 'GET', headers: {} });
+}
+
+export async function apiMindVaultCreateSubject(payload) {
+  return request('/api/mindvault/subjects', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function apiMindVaultUpdateSubject(id, payload) {
+  return request(`/api/mindvault/subjects/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+}
+
+export async function apiMindVaultDeleteSubject(id) {
+  return request(`/api/mindvault/subjects/${id}`, { method: 'DELETE', headers: {} });
+}
+
+export async function apiMindVaultCreateSprint(payload) {
+  return request('/api/mindvault/sprints', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function apiMindVaultUpdateSprint(id, payload) {
+  return request(`/api/mindvault/sprints/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+}
+
+export async function apiMindVaultDeleteSprint(id) {
+  return request(`/api/mindvault/sprints/${id}`, { method: 'DELETE', headers: {} });
+}
+
+export async function apiMindVaultCreateItem(payload) {
+  return request('/api/mindvault/items', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function apiMindVaultUpdateItem(id, payload) {
+  return request(`/api/mindvault/items/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+}
+
+export async function apiMindVaultDeleteItem(id) {
+  return request(`/api/mindvault/items/${id}`, { method: 'DELETE', headers: {} });
+}
+
+export async function apiMindVaultReviewItem(id, payload) {
+  return request(`/api/mindvault/items/${id}/reviews`, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function apiMindVaultQueue() {
+  return request('/api/mindvault/queue', { method: 'GET', headers: {} });
+}
+
+export async function apiMindVaultItems() {
+  return request('/api/mindvault/items', { method: 'GET', headers: {} });
+}
+
+export async function apiMindVaultSubjects() {
+  return request('/api/mindvault/subjects', { method: 'GET', headers: {} });
+}
+
+export async function apiMindVaultSprints() {
+  return request('/api/mindvault/sprints', { method: 'GET', headers: {} });
+}
+
 export async function apiCreateDecisionThread(payload) {
   return request('/api/decisions', { method: 'POST', body: JSON.stringify(payload) });
 }

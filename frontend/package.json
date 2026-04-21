@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "build:pages": "vite build --base=/FlowDash/ --outDir dist --emptyOutDir",
-    "smoke:pages": "npm run build:pages && node tests/run-pages-smoke.mjs"
+    "smoke:pages": "npm run build:pages && node tests/run-pages-smoke.mjs",
+    "smoke:mindvault": "node tests/run-mindvault-smoke.mjs"
   },
   "dependencies": {
     "react": "^19.2.5",
