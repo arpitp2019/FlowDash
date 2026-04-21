@@ -37,14 +37,14 @@ test('Habits shows checklist, calendar consistency, and analytics', async ({ pag
   await page.getByRole('button', { name: 'Create habit' }).click();
 
   const walkCheckbox = page.getByRole('checkbox', { name: 'Complete Morning walk' });
-  await walkCheckbox.click();
+  await markHabitComplete(page, walkCheckbox);
   await expect(walkCheckbox).toBeChecked();
   await expect(page.locator('.habit-row.complete').filter({ hasText: 'Morning walk' }).first()).toBeVisible();
 
   const readInput = page.getByLabel('Read pages value');
   await readInput.fill('25');
   const readCheckbox = page.getByRole('checkbox', { name: 'Complete Read pages' });
-  await readCheckbox.click();
+  await markHabitComplete(page, readCheckbox);
   await expect(readCheckbox).toBeChecked();
   await expect(page.locator('.habit-row.complete').filter({ hasText: 'Read pages' }).first()).toBeVisible();
 
@@ -65,3 +65,12 @@ test('Habits shows checklist, calendar consistency, and analytics', async ({ pag
   await expect(page.locator(`.calendar-day[data-date="${today}"]`)).toHaveAttribute('data-status', 'full');
   await expect(page.locator('.habit-row.complete').filter({ hasText: 'Morning walk' }).first()).toBeVisible();
 });
+
+async function markHabitComplete(page, checkbox) {
+  const checkinResponse = page.waitForResponse((response) => {
+    return response.request().method() === 'POST' && response.url().includes('/api/habits/') && response.url().includes('/checkins');
+  });
+
+  await checkbox.click();
+  await checkinResponse;
+}
