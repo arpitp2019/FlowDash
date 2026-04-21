@@ -76,6 +76,34 @@ export function apiDelete(resource, id) {
   return request(`${resource}/${id}`, { method: 'DELETE', headers: {} });
 }
 
+export async function apiGoalsOverview(date, year) {
+  const params = new URLSearchParams();
+  if (date) params.set('date', date);
+  if (year) params.set('year', year);
+  const query = params.toString() ? `?${params}` : '';
+  return request(`/api/goals/overview${query}`, { method: 'GET', headers: {} });
+}
+
+export async function apiCreateGoal(payload) {
+  return request('/api/goals', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function apiUpdateGoal(id, payload) {
+  return request(`/api/goals/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+}
+
+export async function apiDeleteGoal(id) {
+  return request(`/api/goals/${id}`, { method: 'DELETE', headers: {} });
+}
+
+export async function apiMarkGoalActivity(id, payload) {
+  return request(`/api/goals/${id}/activity`, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function apiClearGoalActivity(id, date) {
+  return request(`/api/goals/${id}/activity/${encodeURIComponent(date)}`, { method: 'DELETE', headers: {} });
+}
+
 export async function apiHabitsOverview(date) {
   const query = date ? `?date=${encodeURIComponent(date)}` : '';
   return request(`/api/habits/overview${query}`, { method: 'GET', headers: {} });

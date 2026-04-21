@@ -15,6 +15,7 @@ import {
   getGoogleAuthUrl,
   streamDecisionChat
 } from './api';
+import GoalTrackerPage from './GoalTrackerPage';
 import HabitTrackerPage from './HabitTrackerPage';
 import MindVaultPage from './MindVaultPage';
 
@@ -33,34 +34,6 @@ const decisionTabs = [
   { key: 'book-models', label: 'Book Models' },
   { key: 'synthesis', label: 'Synthesis' }
 ];
-
-const collectionConfigs = {
-  goals: {
-    title: 'Goals',
-    subtitle: 'Structure the work that matters most.',
-    resource: '/api/goals',
-    emptyLabel: 'No goals yet.',
-    fields: [
-      { key: 'title', label: 'Title', type: 'text' },
-      { key: 'description', label: 'Description', type: 'textarea' },
-      {
-        key: 'status',
-        label: 'Status',
-        type: 'select',
-        options: ['PLANNED', 'IN_PROGRESS', 'DONE', 'BLOCKED']
-      },
-      { key: 'priority', label: 'Priority', type: 'number' },
-      { key: 'dueDate', label: 'Due date', type: 'date' }
-    ],
-    defaults: {
-      title: '',
-      description: '',
-      status: 'PLANNED',
-      priority: 3,
-      dueDate: ''
-    }
-  },
-};
 
 const decisionTemplates = {
   'first-principles': 'Break the decision into facts, assumptions, and constraints.',
@@ -118,7 +91,7 @@ function App() {
           }
         >
           <Route path="/" element={<DashboardPage />} />
-          <Route path="/goals" element={<CollectionPage config={collectionConfigs.goals} />} />
+          <Route path="/goals/*" element={<GoalTrackerPage />} />
           <Route path="/habits" element={<HabitTrackerPage />} />
           <Route path="/vault" element={<MindVaultPage />} />
           <Route path="/decision" element={<DecisionCoachPage />} />

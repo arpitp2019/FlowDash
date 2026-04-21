@@ -440,12 +440,204 @@ button {
   gap: 22px;
 }
 
+.goals-page {
+  gap: 18px;
+}
+
+.goal-actions,
 .habit-actions,
 .mindvault-actions {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.goal-tabs {
+  margin-top: -4px;
+}
+
+.goals-checklist-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.48fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.goal-section,
+.goal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.goal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.goal-row,
+.goal-analytics-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.goal-row.complete {
+  border-color: rgba(75, 225, 195, 0.32);
+  background: rgba(75, 225, 195, 0.08);
+}
+
+.goal-row.overdue:not(.complete) {
+  border-color: rgba(255, 111, 111, 0.22);
+}
+
+.goal-row-check {
+  width: 22px;
+  height: 22px;
+  accent-color: #4be1c3;
+}
+
+.goal-row-copy {
+  min-width: 0;
+}
+
+.goal-row-head,
+.goal-row-meta,
+.goal-row-actions,
+.goal-calendar-actions,
+.goal-mini-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.goal-row-head {
+  justify-content: space-between;
+}
+
+.goal-row-copy p,
+.goal-analytics-card p {
+  margin: 6px 0;
+  color: rgba(241, 246, 255, 0.72);
+}
+
+.goal-row-meta {
+  color: rgba(241, 246, 255, 0.62);
+  font-size: 0.9rem;
+}
+
+.compact-date {
+  width: 170px;
+}
+
+.goal-year-shell {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.goal-month-labels {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(48px, 1fr));
+  min-width: 760px;
+  margin-left: 42px;
+  color: rgba(241, 246, 255, 0.6);
+  font-size: 0.78rem;
+}
+
+.goal-year-body {
+  display: grid;
+  grid-template-columns: 34px minmax(760px, 1fr);
+  gap: 8px;
+  align-items: start;
+}
+
+.goal-weekday-labels {
+  display: grid;
+  grid-template-rows: repeat(7, 12px);
+  gap: 4px;
+  color: rgba(241, 246, 255, 0.54);
+  font-size: 0.66rem;
+  line-height: 12px;
+}
+
+.goal-year-grid {
+  display: grid;
+  grid-template-columns: repeat(53, 12px);
+  gap: 4px;
+}
+
+.goal-year-week {
+  display: grid;
+  grid-template-rows: repeat(7, 12px);
+  gap: 4px;
+}
+
+.goal-day,
+.goal-day-pad {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.goal-day {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 0;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.goal-day.level-1 {
+  background: rgba(75, 225, 195, 0.28);
+}
+
+.goal-day.level-2 {
+  background: rgba(75, 225, 195, 0.48);
+}
+
+.goal-day.level-3 {
+  background: rgba(75, 225, 195, 0.72);
+}
+
+.goal-day.level-4 {
+  background: #4be1c3;
+}
+
+.goal-day.selected {
+  outline: 2px solid #f4f7fb;
+  outline-offset: 2px;
+}
+
+.goal-calendar-detail,
+.goal-mix-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.42fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.goal-calendar-detail h4,
+.goal-mix-block h4 {
+  margin: 4px 0 0;
+}
+
+.goal-stats-grid,
+.goal-analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.goal-analytics-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
 
 .habit-hero,
@@ -1257,6 +1449,11 @@ button {
   .card-grid,
   .habit-layout,
   .habit-hero,
+  .goals-checklist-layout,
+  .goal-calendar-detail,
+  .goal-mix-row,
+  .goal-stats-grid,
+  .goal-analytics-grid,
   .mindvault-layout,
   .mindvault-hero {
     grid-template-columns: 1fr;
@@ -1285,6 +1482,9 @@ button {
   .form-grid,
   .behavior-grid,
   .habit-design-grid,
+  .goal-stats-grid,
+  .goal-analytics-grid,
+  .goal-mix-row,
   .flashcard,
   .rating-row,
   .forecast-grid {
@@ -1292,8 +1492,17 @@ button {
   }
 
   .habit-actions,
+  .goal-actions,
   .mindvault-actions {
     justify-content: flex-start;
+  }
+
+  .goal-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .goal-row-actions {
+    grid-column: 1 / -1;
   }
 }
 
