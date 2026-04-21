@@ -15,9 +15,10 @@ test('Habits shows checklist, calendar consistency, and analytics', async ({ pag
   await expect(page.getByRole('link', { name: 'Habits' })).toBeVisible();
   await page.getByRole('link', { name: 'Habits' }).click();
   await expect(page).toHaveURL(/\/habits$/);
+  await expect(page.getByRole('button', { name: 'Checklist' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Calendar' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Analytics' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Daily Habit Checklist' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Calendar Consistency View' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Habit Analytics Dashboard' })).toBeVisible();
 
   await page.getByRole('button', { name: 'New habit' }).click();
   await expect(page.getByRole('dialog', { name: 'Create habit' })).toBeVisible();
@@ -47,11 +48,19 @@ test('Habits shows checklist, calendar consistency, and analytics', async ({ pag
   await expect(readCheckbox).toBeChecked();
   await expect(page.locator('.habit-row.complete').filter({ hasText: 'Read pages' }).first()).toBeVisible();
 
+  await page.getByRole('button', { name: 'Calendar' }).click();
+  await expect(page.getByRole('heading', { name: 'Calendar Consistency View' })).toBeVisible();
   await expect(page.locator(`.calendar-day[data-date="${today}"]`)).toHaveAttribute('data-status', 'full');
+  await page.getByRole('button', { name: 'Analytics' }).click();
   await expect(page.getByRole('heading', { name: 'Habit Analytics Dashboard' })).toBeVisible();
   await expect(page.locator('.habit-analytics-card').filter({ hasText: 'Morning walk' }).first()).toBeVisible();
 
+  await page.getByRole('button', { name: 'Checklist' }).click();
+  await expect(page.getByRole('heading', { name: 'Daily Habit Checklist' })).toBeVisible();
+  await expect(page.locator('.habit-row.complete').filter({ hasText: 'Morning walk' }).first()).toBeVisible();
+
   await page.reload({ waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('button', { name: 'Checklist' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Daily Habit Checklist' })).toBeVisible();
   await expect(page.locator(`.calendar-day[data-date="${today}"]`)).toHaveAttribute('data-status', 'full');
   await expect(page.locator('.habit-row.complete').filter({ hasText: 'Morning walk' }).first()).toBeVisible();

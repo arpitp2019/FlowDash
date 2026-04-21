@@ -67,8 +67,15 @@ const emptyAnalytics = {
   monthlyTrend: []
 };
 
+const habitViews = [
+  { key: 'checklist', label: 'Checklist', description: 'Toggle today’s habits directly.' },
+  { key: 'calendar', label: 'Calendar', description: 'See how each day tracked overall completion.' },
+  { key: 'analytics', label: 'Analytics', description: 'Review streaks, rate, and simple trends.' }
+];
+
 function HabitTrackerPage() {
   const [selectedDate, setSelectedDate] = useState(today());
+  const [activeHabitView, setActiveHabitView] = useState('checklist');
   const [overview, setOverview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -266,9 +273,24 @@ function HabitTrackerPage() {
         </div>
       </div>
 
+      <div className="tabs habit-view-tabs" role="tablist" aria-label="Habit sections">
+        {habitViews.map((view) => (
+          <button
+            key={view.key}
+            type="button"
+            className={`tab${activeHabitView === view.key ? ' active' : ''}`}
+            aria-pressed={activeHabitView === view.key}
+            onClick={() => setActiveHabitView(view.key)}
+          >
+            {view.label}
+          </button>
+        ))}
+      </div>
+      <p className="muted habit-view-note">{habitViews.find((view) => view.key === activeHabitView)?.description}</p>
+
       {error ? <div className="notice error">{error}</div> : null}
 
-      <section className="panel habit-section">
+      <section className="panel habit-section" hidden={activeHabitView !== 'checklist'}>
         <div className="panel-header">
           <div>
             <h3>Daily Habit Checklist</h3>
@@ -299,7 +321,7 @@ function HabitTrackerPage() {
         </div>
       </section>
 
-      <section className="panel habit-section">
+      <section className="panel habit-section" hidden={activeHabitView !== 'calendar'}>
         <div className="panel-header">
           <div>
             <h3>Calendar Consistency View</h3>
@@ -360,7 +382,7 @@ function HabitTrackerPage() {
         </div>
       </section>
 
-      <section className="panel habit-section">
+      <section className="panel habit-section" hidden={activeHabitView !== 'analytics'}>
         <div className="panel-header">
           <div>
             <h3>Habit Analytics Dashboard</h3>
