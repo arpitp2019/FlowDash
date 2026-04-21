@@ -36,7 +36,7 @@ async function waitForPreview() {
 
 function runPlaywright() {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ['node_modules/@playwright/test/cli.js', 'test', '--reporter=line'], {
+    const child = spawn(process.execPath, ['node_modules/@playwright/test/cli.js', 'test', 'tests/pages-subpath.spec.js', '--reporter=line'], {
       cwd: process.cwd(),
       stdio: 'inherit'
     });
