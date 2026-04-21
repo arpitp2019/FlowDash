@@ -62,6 +62,11 @@ class HabitServiceTest {
         assertThat(overview.today()).hasSize(1);
         assertThat(overview.stats().todayProgress()).isEqualTo(100);
         assertThat(overview.habits().getFirst().currentStreak()).isGreaterThanOrEqualTo(2);
+        assertThat(overview.habits().getFirst().weeklyConsistency()).isGreaterThan(0);
+        assertThat(overview.habits().getFirst().monthlyConsistency()).isGreaterThan(0);
+        assertThat(overview.habits().getFirst().consistencyScore()).isBetween(0, 100);
+        assertThat(overview.calendarDays()).hasSize(today.lengthOfMonth());
+        assertThat(overview.calendarDays().stream().filter(point -> today.equals(point.date())).findFirst().orElseThrow().completedCount()).isEqualTo(1);
         assertThat(overview.overdue()).isEmpty();
     }
 

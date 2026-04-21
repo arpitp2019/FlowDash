@@ -1,8 +1,9 @@
 import { expect, test } from '@playwright/test';
 
 const email = `habits-${Date.now()}-${Math.random().toString(36).slice(2)}@example.com`;
+const today = new Date().toISOString().slice(0, 10);
 
-test('Habits supports flexible creation, check-ins, analytics, and refresh', async ({ page }) => {
+test('Habits shows checklist, calendar consistency, and analytics', async ({ page }) => {
   await page.goto('/login', { waitUntil: 'domcontentloaded' });
   await page.locator('.segmented').getByRole('button', { name: 'Create account' }).click();
 
@@ -14,41 +15,44 @@ test('Habits supports flexible creation, check-ins, analytics, and refresh', asy
   await expect(page.getByRole('link', { name: 'Habits' })).toBeVisible();
   await page.getByRole('link', { name: 'Habits' }).click();
   await expect(page).toHaveURL(/\/habits$/);
-  await expect(page.getByText('Daily operating system for behavior change.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Daily Habit Checklist' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Calendar Consistency View' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Habit Analytics Dashboard' })).toBeVisible();
 
+  await page.getByRole('button', { name: 'New habit' }).click();
+  await expect(page.getByRole('dialog', { name: 'Create habit' })).toBeVisible();
   await page.getByLabel('Habit title').fill('Morning walk');
   await page.getByLabel('Description').fill('Walk after tea before opening messages.');
   await page.getByLabel('Type').selectOption('BUILD');
   await page.getByLabel('Reminder time').fill('07:30');
-  await page.getByLabel('Tags').fill('health, morning');
-  await page.getByLabel('Cue').fill('Finish tea');
-  await page.getByLabel('Routine').fill('Walk for ten minutes');
-  await page.getByLabel('Reward').fill('Fresh playlist');
-  await page.getByLabel('Identity statement').fill('I am the kind of person who starts the day with movement.');
   await page.getByRole('button', { name: 'Create habit' }).click();
-  await expect(page.locator('.habit-card').filter({ hasText: 'Morning walk' }).first()).toBeVisible();
 
+  await page.getByRole('button', { name: 'New habit' }).click();
   await page.getByLabel('Habit title').fill('Read pages');
   await page.getByLabel('Description').fill('Read before entertainment.');
   await page.getByLabel('Type').selectOption('NUMERIC');
   await page.getByLabel('Target value').fill('20');
   await page.getByLabel('Target unit').fill('pages');
-  await page.getByLabel('Tags').fill('learning');
   await page.getByRole('button', { name: 'Create habit' }).click();
-  await expect(page.locator('.habit-card').filter({ hasText: 'Read pages' }).first()).toBeVisible();
 
-  const walkCard = page.locator('.habit-today-card').filter({ hasText: 'Morning walk' }).first();
-  await walkCard.getByRole('button', { name: /Done|Avoided/ }).click();
-  await expect(walkCard.getByText('Done')).toBeVisible();
+  const walkCheckbox = page.getByRole('checkbox', { name: 'Complete Morning walk' });
+  await walkCheckbox.click();
+  await expect(walkCheckbox).toBeChecked();
+  await expect(page.locator('.habit-row.complete').filter({ hasText: 'Morning walk' }).first()).toBeVisible();
 
-  const readCard = page.locator('.habit-today-card').filter({ hasText: 'Read pages' }).first();
-  await readCard.getByLabel('pages today').fill('25');
-  await readCard.getByRole('button', { name: /Done|Avoided/ }).click();
+  const readInput = page.getByLabel('Read pages value');
+  await readInput.fill('25');
+  const readCheckbox = page.getByRole('checkbox', { name: 'Complete Read pages' });
+  await readCheckbox.click();
+  await expect(readCheckbox).toBeChecked();
+  await expect(page.locator('.habit-row.complete').filter({ hasText: 'Read pages' }).first()).toBeVisible();
 
-  await expect(page.locator('.habit-hero').getByText('2/2').first()).toBeVisible();
-  await expect(page.getByText('Best streaks')).toBeVisible();
+  await expect(page.locator(`.calendar-day[data-date="${today}"]`)).toHaveAttribute('data-status', 'full');
+  await expect(page.getByRole('heading', { name: 'Habit Analytics Dashboard' })).toBeVisible();
+  await expect(page.locator('.habit-analytics-card').filter({ hasText: 'Morning walk' }).first()).toBeVisible();
 
   await page.reload({ waitUntil: 'domcontentloaded' });
-  await expect(page.getByText('Daily operating system for behavior change.')).toBeVisible();
-  await expect(page.locator('.habit-card').filter({ hasText: 'Morning walk' }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Daily Habit Checklist' })).toBeVisible();
+  await expect(page.locator(`.calendar-day[data-date="${today}"]`)).toHaveAttribute('data-status', 'full');
+  await expect(page.locator('.habit-row.complete').filter({ hasText: 'Morning walk' }).first()).toBeVisible();
 });

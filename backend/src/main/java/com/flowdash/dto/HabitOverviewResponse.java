@@ -8,6 +8,7 @@ public record HabitOverviewResponse(
         List<HabitResponse> habits,
         List<HabitResponse> today,
         List<HabitResponse> overdue,
-        List<HabitResponse> upcomingReminders
+        List<HabitResponse> upcomingReminders,
+        List<HabitForecastPointResponse> calendarDays
 ) {
 }

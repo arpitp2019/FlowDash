@@ -54,7 +54,9 @@ public class HabitService {
 
     public HabitOverviewResponse overview(LocalDate date) {
         LocalDate today = normalizeDate(date);
-        HabitSnapshot snapshot = snapshot(today.minusDays(60), today.plusDays(14));
+        LocalDate monthStart = today.withDayOfMonth(1);
+        LocalDate monthEnd = today.withDayOfMonth(today.lengthOfMonth());
+        HabitSnapshot snapshot = snapshot(today.minusDays(120), monthEnd);
         List<HabitResponse> habits = mapHabits(snapshot.habits(), snapshot.checkinsByHabit(), today);
         List<HabitResponse> todayHabits = habits.stream()
                 .filter(HabitResponse::dueToday)
@@ -76,7 +78,8 @@ public class HabitService {
                 habits,
                 todayHabits,
                 overdue,
-                reminders
+                reminders,
+                calendarDays(snapshot, monthStart, monthEnd)
         );
     }
 
@@ -243,6 +246,9 @@ public class HabitService {
         int completionRate = counted == 0 ? 0 : (int) Math.round(successful * 100.0 / counted);
         int currentStreak = currentStreak(habit, byDate, today);
         int bestStreak = bestStreak(habit, byDate, today.minusDays(120), today);
+        int weeklyConsistency = consistency(List.of(habit), Map.of(habit.getId(), checkins), today.minusDays(6), today);
+        int monthlyConsistency = consistency(List.of(habit), Map.of(habit.getId(), checkins), today.minusDays(29), today);
+        int consistencyScore = clamp((int) Math.round((completionRate * 0.45) + (weeklyConsistency * 0.30) + (monthlyConsistency * 0.25)), 0, 0, 100);
         return new HabitResponse(
                 habit.getId(),
                 habit.getTitle(),
@@ -271,6 +277,9 @@ public class HabitService {
                 reminderLabel(habit, dueToday, overdue),
                 currentStreak,
                 bestStreak,
+                weeklyConsistency,
+                monthlyConsistency,
+                consistencyScore,
                 completionRate,
                 checkins.size(),
                 successful,
@@ -326,6 +335,12 @@ public class HabitService {
                 .mapToObj(offset -> forecastPoint(snapshot, today.minusDays(29 - offset)))
                 .toList();
         return new HabitAnalyticsResponse(weak, best, weeklyLoad, monthlyTrend);
+    }
+
+    private static List<HabitForecastPointResponse> calendarDays(HabitSnapshot snapshot, LocalDate monthStart, LocalDate monthEnd) {
+        return IntStream.rangeClosed(0, monthEnd.getDayOfMonth() - 1)
+                .mapToObj(offset -> forecastPoint(snapshot, monthStart.plusDays(offset)))
+                .toList();
     }
 
     private static HabitForecastPointResponse forecastPoint(HabitSnapshot snapshot, LocalDate date) {
