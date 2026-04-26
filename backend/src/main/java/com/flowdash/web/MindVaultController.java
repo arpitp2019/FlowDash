@@ -6,6 +6,8 @@ import com.flowdash.dto.MindVaultItemResponse;
 import com.flowdash.dto.MindVaultOverviewResponse;
 import com.flowdash.dto.MindVaultReviewLogResponse;
 import com.flowdash.dto.MindVaultReviewRequest;
+import com.flowdash.dto.MindVaultResourceRequest;
+import com.flowdash.dto.MindVaultResourceResponse;
 import com.flowdash.dto.MindVaultSprintRequest;
 import com.flowdash.dto.MindVaultSprintResponse;
 import com.flowdash.dto.MindVaultStatsResponse;
@@ -14,6 +16,8 @@ import com.flowdash.dto.MindVaultSubjectResponse;
 import com.flowdash.service.ApiMappers;
 import com.flowdash.service.MindVaultService;
 import jakarta.validation.Valid;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,8 +25,12 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -38,6 +46,26 @@ public class MindVaultController {
     @GetMapping("/overview")
     public MindVaultOverviewResponse overview() {
         return ApiMappers.toMindVaultOverviewResponse(mindVaultService.snapshot());
+    }
+
+    @GetMapping("/inbox")
+    public MindVaultOverviewResponse inbox() {
+        return overview();
+    }
+
+    @GetMapping("/library")
+    public MindVaultOverviewResponse library() {
+        return overview();
+    }
+
+    @GetMapping("/subjects/overview")
+    public MindVaultOverviewResponse subjectsOverview() {
+        return overview();
+    }
+
+    @GetMapping("/insights")
+    public MindVaultOverviewResponse insights() {
+        return overview();
     }
 
     @GetMapping("/analytics")
@@ -114,6 +142,11 @@ public class MindVaultController {
         return mindVaultService.queue().stream().map(ApiMappers::toMindVaultItemResponse).toList();
     }
 
+    @GetMapping("/review-queue")
+    public List<MindVaultItemResponse> reviewQueue(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        return mindVaultService.queue(date).stream().map(item -> ApiMappers.toMindVaultItemResponse(item, date == null ? LocalDate.now(java.time.ZoneOffset.UTC) : date)).toList();
+    }
+
     @PostMapping("/items")
     public MindVaultItemResponse createItem(@Valid @RequestBody MindVaultItemRequest request) {
         return ApiMappers.toMindVaultItemResponse(mindVaultService.createItem(request));
@@ -132,5 +165,25 @@ public class MindVaultController {
     @PostMapping("/items/{id}/reviews")
     public MindVaultReviewLogResponse reviewItem(@PathVariable Long id, @Valid @RequestBody MindVaultReviewRequest request) {
         return ApiMappers.toMindVaultReviewLogResponse(mindVaultService.reviewItem(id, request));
+    }
+
+    @PostMapping(path = "/items/{id}/resources", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public MindVaultResourceResponse createResource(@PathVariable Long id, @Valid @RequestBody MindVaultResourceRequest request) {
+        return ApiMappers.toMindVaultResourceResponse(mindVaultService.createResource(id, request));
+    }
+
+    @PostMapping(path = "/items/{id}/resources", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public MindVaultResourceResponse uploadResource(
+            @PathVariable Long id,
+            @RequestPart("file") MultipartFile file,
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) String description
+    ) {
+        return ApiMappers.toMindVaultResourceResponse(mindVaultService.uploadResource(id, title, description, file));
+    }
+
+    @DeleteMapping("/resources/{id}")
+    public void deleteResource(@PathVariable Long id) {
+        mindVaultService.deleteResource(id);
     }
 }

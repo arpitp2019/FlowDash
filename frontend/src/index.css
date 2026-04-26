@@ -717,6 +717,75 @@ button {
   gap: 14px;
 }
 
+.lms-layout {
+  align-items: start;
+}
+
+.mindvault-hero.compact {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.compact-segmented {
+  width: fit-content;
+}
+
+.more-options {
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.more-options summary {
+  cursor: pointer;
+  color: #d7def6;
+  font-weight: 800;
+}
+
+.resource-box {
+  padding: 14px;
+  border-radius: 20px;
+  background: rgba(75, 225, 195, 0.05);
+  border: 1px solid rgba(75, 225, 195, 0.14);
+}
+
+.resource-list {
+  margin-top: 12px;
+}
+
+.resource-list summary {
+  cursor: pointer;
+  color: #d7def6;
+  font-weight: 800;
+}
+
+.compact-list {
+  margin-top: 10px;
+  gap: 8px;
+}
+
+.resource-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.resource-row p {
+  margin: 4px 0 0;
+  color: rgba(241, 246, 255, 0.68);
+}
+
+.learning-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1398,6 +1467,17 @@ button {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
   margin-top: 16px;
+}
+
+.review-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.panel-header.spaced {
+  margin-top: 24px;
 }
 
 .rating-button {

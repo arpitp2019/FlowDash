@@ -12,11 +12,12 @@ let csrfTokenPromise = null;
 async function request(path, options = {}) {
   const method = options.method || 'GET';
   const csrfHeaders = await csrfHeadersFor(method);
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
   const response = await fetch(apiBase + path, {
     credentials: 'include',
     ...options,
     headers: {
-      ...jsonHeaders,
+      ...(isFormData ? {} : jsonHeaders),
       ...csrfHeaders,
       ...(options.headers || {})
     }
@@ -141,6 +142,18 @@ export async function apiMindVaultOverview() {
   return request('/api/mindvault/overview', { method: 'GET', headers: {} });
 }
 
+export async function apiMindVaultInbox() {
+  return request('/api/mindvault/inbox', { method: 'GET', headers: {} });
+}
+
+export async function apiMindVaultLibrary() {
+  return request('/api/mindvault/library', { method: 'GET', headers: {} });
+}
+
+export async function apiMindVaultInsights() {
+  return request('/api/mindvault/insights', { method: 'GET', headers: {} });
+}
+
 export async function apiMindVaultAnalytics() {
   return request('/api/mindvault/analytics', { method: 'GET', headers: {} });
 }
@@ -193,6 +206,11 @@ export async function apiMindVaultQueue() {
   return request('/api/mindvault/queue', { method: 'GET', headers: {} });
 }
 
+export async function apiMindVaultReviewQueue(date) {
+  const query = date ? `?date=${encodeURIComponent(date)}` : '';
+  return request(`/api/mindvault/review-queue${query}`, { method: 'GET', headers: {} });
+}
+
 export async function apiMindVaultItems() {
   return request('/api/mindvault/items', { method: 'GET', headers: {} });
 }
@@ -203,6 +221,18 @@ export async function apiMindVaultSubjects() {
 
 export async function apiMindVaultSprints() {
   return request('/api/mindvault/sprints', { method: 'GET', headers: {} });
+}
+
+export async function apiMindVaultCreateResource(itemId, payload) {
+  return request(`/api/mindvault/items/${itemId}/resources`, { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function apiMindVaultUploadResource(itemId, formData) {
+  return request(`/api/mindvault/items/${itemId}/resources`, { method: 'POST', body: formData });
+}
+
+export async function apiMindVaultDeleteResource(resourceId) {
+  return request(`/api/mindvault/resources/${resourceId}`, { method: 'DELETE', headers: {} });
 }
 
 export async function apiCreateDecisionThread(payload) {

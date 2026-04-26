@@ -7,7 +7,9 @@ import com.flowdash.domain.GoalItem;
 import com.flowdash.domain.MindVaultItemSource;
 import com.flowdash.domain.MindVaultItemStatus;
 import com.flowdash.domain.MindVaultLearningItem;
+import com.flowdash.domain.MindVaultLearningType;
 import com.flowdash.domain.MindVaultReviewLog;
+import com.flowdash.domain.MindVaultResource;
 import com.flowdash.domain.MindVaultSprint;
 import com.flowdash.domain.MindVaultSprintStatus;
 import com.flowdash.domain.MindVaultSubject;
@@ -20,6 +22,7 @@ import com.flowdash.dto.MindVaultForecastPointResponse;
 import com.flowdash.dto.MindVaultItemResponse;
 import com.flowdash.dto.MindVaultOverviewResponse;
 import com.flowdash.dto.MindVaultReviewLogResponse;
+import com.flowdash.dto.MindVaultResourceResponse;
 import com.flowdash.dto.MindVaultSprintResponse;
 import com.flowdash.dto.MindVaultStatsResponse;
 import com.flowdash.dto.MindVaultSubjectAnalyticsResponse;
@@ -157,6 +160,7 @@ public final class ApiMappers {
                 item.getSprint() == null ? null : item.getSprint().getId(),
                 item.getSprint() == null ? null : item.getSprint().getTitle(),
                 item.getSource(),
+                item.getLearningType(),
                 item.getStatus(),
                 item.getTitle(),
                 item.getPrompt(),
@@ -164,23 +168,47 @@ public final class ApiMappers {
                 item.getNotes(),
                 splitTags(item.getTags()),
                 item.getPriority(),
+                item.getImportance(),
                 item.getDifficulty(),
                 item.getMasteryScore(),
                 item.getReviewStreak(),
                 item.getReviewCount(),
                 item.getSuccessCount(),
+                item.getLapseCount(),
                 item.getEaseFactor(),
                 item.getReviewIntervalDays(),
                 item.getNextReviewDate(),
                 item.getDueDate(),
                 item.getLastReviewedAt(),
                 item.getLastRating(),
+                item.isReviewEnabled(),
+                item.getSourceLabel(),
+                item.getResources().stream()
+                        .map(ApiMappers::toMindVaultResourceResponse)
+                        .toList(),
                 item.getStatus() == MindVaultItemStatus.MASTERED,
                 dueToday,
                 overdue,
                 MindVaultService.queueReason(item, today),
                 item.getCreatedAt(),
                 item.getUpdatedAt()
+        );
+    }
+
+    public static MindVaultResourceResponse toMindVaultResourceResponse(MindVaultResource resource) {
+        return new MindVaultResourceResponse(
+                resource.getId(),
+                resource.getItem().getId(),
+                resource.getResourceType(),
+                resource.getTitle(),
+                resource.getDescription(),
+                resource.getUrl(),
+                resource.getStoragePath(),
+                resource.getMimeType(),
+                resource.getSizeBytes(),
+                resource.getOriginalFileName(),
+                resource.getCreatedAt(),
+                resource.getUpdatedAt()
         );
     }
 
@@ -266,10 +294,15 @@ public final class ApiMappers {
         long totalSprints = snapshot.sprints().size();
         long activeSprints = snapshot.sprints().stream().filter(sprint -> sprint.getStatus() != MindVaultSprintStatus.COMPLETED).count();
         long totalItems = snapshot.items().size();
-        long randomItems = snapshot.items().stream().filter(item -> item.getSource() == MindVaultItemSource.RANDOM).count();
+        long importantItems = snapshot.items().stream().filter(item -> item.getLearningType() == MindVaultLearningType.IMPORTANT_TOPIC).count();
+        long randomItems = snapshot.items().stream().filter(item -> item.getLearningType() == MindVaultLearningType.RANDOM_LEARNING || item.getSource() == MindVaultItemSource.RANDOM).count();
+        long resourceCount = snapshot.items().stream().mapToLong(item -> item.getResources().size()).sum();
         long dueToday = queue.stream().filter(item -> MindVaultService.effectiveDueDate(item, today).equals(today)).count();
         long overdue = queue.stream().filter(item -> MindVaultService.effectiveDueDate(item, today).isBefore(today)).count();
         long mastered = snapshot.items().stream().filter(item -> item.getStatus() == MindVaultItemStatus.MASTERED).count();
+        long learnedThisWeek = snapshot.items().stream()
+                .filter(item -> item.getCreatedAt() != null && item.getCreatedAt().isAfter(Instant.now().minusSeconds(7L * 24L * 60L * 60L)))
+                .count();
         long reviewsThisWeek = snapshot.reviews().stream()
                 .filter(review -> review.getCreatedAt() != null && review.getCreatedAt().isAfter(Instant.now().minusSeconds(7L * 24L * 60L * 60L)))
                 .count();
@@ -282,14 +315,18 @@ public final class ApiMappers {
                 totalSprints,
                 activeSprints,
                 totalItems,
+                importantItems,
                 randomItems,
+                resourceCount,
                 dueToday,
                 overdue,
                 mastered,
+                learnedThisWeek,
                 reviewsThisWeek,
                 averageMastery,
                 studyStreak,
-                nextDeadline
+                nextDeadline,
+                snapshot.fileUploadsEnabled()
         );
     }
 

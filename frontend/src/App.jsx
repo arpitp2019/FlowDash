@@ -91,7 +91,7 @@ function App() {
           <Route path="/" element={<DashboardPage />} />
           <Route path="/habits/*" element={<GoalTrackerPage />} />
           <Route path="/goals/*" element={<Navigate to="/habits/checklist" replace />} />
-          <Route path="/vault" element={<Navigate to="/vault/overview" replace />} />
+          <Route path="/vault" element={<Navigate to="/vault/review" replace />} />
           <Route path="/vault/*" element={<MindVaultPage />} />
           <Route path="/decision" element={<DecisionCoachPage />} />
         </Route>
@@ -150,7 +150,7 @@ function DashboardPage() {
   const cards = useMemo(
     () => [
       { title: 'Habits', path: '/habits', description: 'Keep steady progress visible and measurable.' },
-      { title: 'MindVault', path: '/vault', description: 'Plan subjects, sprints, and daily reviews.' },
+    { title: 'MindVault', path: '/vault', description: 'Capture learning and revise it through spaced repetition.' },
       { title: 'Decision Coach', path: '/decision', description: 'Think in frameworks and get a final recommendation.' }
     ],
     []

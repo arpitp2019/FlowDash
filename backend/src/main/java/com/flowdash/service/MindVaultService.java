@@ -4,23 +4,29 @@ import com.flowdash.domain.AppUser;
 import com.flowdash.domain.MindVaultItemSource;
 import com.flowdash.domain.MindVaultItemStatus;
 import com.flowdash.domain.MindVaultLearningItem;
+import com.flowdash.domain.MindVaultLearningType;
 import com.flowdash.domain.MindVaultReviewLog;
 import com.flowdash.domain.MindVaultReviewRating;
+import com.flowdash.domain.MindVaultResource;
+import com.flowdash.domain.MindVaultResourceType;
 import com.flowdash.domain.MindVaultSprint;
 import com.flowdash.domain.MindVaultSprintStatus;
 import com.flowdash.domain.MindVaultSubject;
 import com.flowdash.dto.MindVaultItemRequest;
+import com.flowdash.dto.MindVaultResourceRequest;
 import com.flowdash.dto.MindVaultReviewRequest;
 import com.flowdash.dto.MindVaultSprintRequest;
 import com.flowdash.dto.MindVaultSubjectRequest;
 import com.flowdash.repository.MindVaultLearningItemRepository;
 import com.flowdash.repository.MindVaultReviewLogRepository;
+import com.flowdash.repository.MindVaultResourceRepository;
 import com.flowdash.repository.MindVaultSprintRepository;
 import com.flowdash.repository.MindVaultSubjectRepository;
 import com.flowdash.security.CurrentUserService;
 import com.flowdash.service.exception.DuplicateResourceException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -39,18 +45,24 @@ public class MindVaultService {
     private final MindVaultSprintRepository sprintRepository;
     private final MindVaultLearningItemRepository itemRepository;
     private final MindVaultReviewLogRepository reviewLogRepository;
+    private final MindVaultResourceRepository resourceRepository;
     private final CurrentUserService currentUserService;
+    private final SupabaseStorageService supabaseStorageService;
 
     public MindVaultService(MindVaultSubjectRepository subjectRepository,
                             MindVaultSprintRepository sprintRepository,
                             MindVaultLearningItemRepository itemRepository,
                             MindVaultReviewLogRepository reviewLogRepository,
-                            CurrentUserService currentUserService) {
+                            MindVaultResourceRepository resourceRepository,
+                            CurrentUserService currentUserService,
+                            SupabaseStorageService supabaseStorageService) {
         this.subjectRepository = subjectRepository;
         this.sprintRepository = sprintRepository;
         this.itemRepository = itemRepository;
         this.reviewLogRepository = reviewLogRepository;
+        this.resourceRepository = resourceRepository;
         this.currentUserService = currentUserService;
+        this.supabaseStorageService = supabaseStorageService;
     }
 
     public List<MindVaultSubject> listSubjects() {
@@ -176,11 +188,18 @@ public class MindVaultService {
         }
         validateSubjectSprintCompatibility(subject, sprint);
         LocalDate today = today();
+        boolean reviewEnabled = request.reviewEnabled() == null || request.reviewEnabled();
+        MindVaultLearningType learningType = request.learningType() != null
+                ? request.learningType()
+                : resolveLearningType(MindVaultLearningType.IMPORTANT_TOPIC, request.source());
+        MindVaultItemSource source = learningType == MindVaultLearningType.RANDOM_LEARNING
+                ? MindVaultItemSource.RANDOM
+                : request.source() == null ? MindVaultItemSource.PLANNED : request.source();
         MindVaultLearningItem item = new MindVaultLearningItem(
                 user,
                 subject,
                 sprint,
-                request.source() == null ? MindVaultItemSource.PLANNED : request.source(),
+                source,
                 normalizeTitle(request.title()),
                 normalizeText(request.prompt()),
                 normalizeText(request.answer()),
@@ -194,12 +213,16 @@ public class MindVaultService {
                 0,
                 2.1d,
                 1,
-                today,
+                reviewEnabled ? today.plusDays(1) : null,
                 Instant.now(),
                 null,
                 MindVaultItemStatus.ACTIVE,
                 request.dueDate()
         );
+        item.setLearningType(learningType);
+        item.setImportance(clamp(request.importance(), request.priority() == null ? 3 : request.priority(), 1, 5));
+        item.setReviewEnabled(reviewEnabled);
+        item.setSourceLabel(normalizeText(request.sourceLabel()));
         if (request.status() != null) {
             item.setStatus(request.status());
         }
@@ -214,16 +237,29 @@ public class MindVaultService {
             subject = sprint.getSubject();
         }
         validateSubjectSprintCompatibility(subject, sprint);
+        MindVaultLearningType learningType = resolveLearningType(request.learningType(), request.source());
         item.setSubject(subject);
         item.setSprint(sprint);
-        item.setSource(request.source() == null ? item.getSource() : request.source());
+        item.setLearningType(learningType);
+        item.setSource(learningType == MindVaultLearningType.RANDOM_LEARNING
+                ? MindVaultItemSource.RANDOM
+                : request.source() == null ? item.getSource() : request.source());
         item.setTitle(normalizeTitle(request.title()));
         item.setPrompt(normalizeText(request.prompt()));
         item.setAnswer(normalizeText(request.answer()));
         item.setNotes(normalizeText(request.notes()));
         item.setTags(normalizeTags(request.tags()));
         item.setPriority(request.priority() == null ? item.getPriority() : clamp(request.priority(), item.getPriority(), 1, 5));
+        item.setImportance(request.importance() == null ? item.getImportance() : clamp(request.importance(), item.getImportance(), 1, 5));
         item.setDifficulty(request.difficulty() == null ? item.getDifficulty() : clamp(request.difficulty(), item.getDifficulty(), 1, 5));
+        item.setReviewEnabled(request.reviewEnabled() == null ? item.isReviewEnabled() : request.reviewEnabled());
+        if (item.isReviewEnabled() && item.getNextReviewDate() == null && item.getStatus() == MindVaultItemStatus.ACTIVE) {
+            item.setNextReviewDate(today().plusDays(1));
+        }
+        if (!item.isReviewEnabled()) {
+            item.setNextReviewDate(null);
+        }
+        item.setSourceLabel(normalizeText(request.sourceLabel()));
         item.setDueDate(request.dueDate());
         if (request.status() != null) {
             item.setStatus(request.status());
@@ -245,6 +281,7 @@ public class MindVaultService {
         item.setReviewStreak(outcome.reviewStreak());
         item.setReviewCount(outcome.reviewCount());
         item.setSuccessCount(outcome.successCount());
+        item.setLapseCount(outcome.lapseCount());
         item.setEaseFactor(outcome.easeFactor());
         item.setReviewIntervalDays(outcome.nextIntervalDays());
         item.setNextReviewDate(outcome.nextReviewDate());
@@ -265,13 +302,62 @@ public class MindVaultService {
         return reviewLogRepository.save(log);
     }
 
+    public MindVaultResource createResource(Long itemId, MindVaultResourceRequest request) {
+        MindVaultLearningItem item = requireOwnedItem(itemId);
+        MindVaultResourceType resourceType = request.resourceType();
+        if (resourceType == MindVaultResourceType.LINK && normalizeText(request.url()) == null) {
+            throw new IllegalArgumentException("URL is required for link resources");
+        }
+        if (isFileResource(resourceType)) {
+            throw new IllegalArgumentException("Use file upload for file resources");
+        }
+        MindVaultResource resource = new MindVaultResource(
+                currentUserService.requireCurrentUser(),
+                item,
+                resourceType,
+                normalizeTitle(request.title()),
+                normalizeText(request.description()),
+                normalizeText(request.url()),
+                null,
+                null,
+                null,
+                null
+        );
+        return resourceRepository.save(resource);
+    }
+
+    public MindVaultResource uploadResource(Long itemId, String title, String description, MultipartFile file) {
+        MindVaultLearningItem item = requireOwnedItem(itemId);
+        SupabaseStorageService.StoredObject storedObject = supabaseStorageService.upload(currentUserService.requireCurrentUserId(), item.getId(), file);
+        MindVaultResource resource = new MindVaultResource(
+                currentUserService.requireCurrentUser(),
+                item,
+                detectResourceType(storedObject.mimeType(), storedObject.originalFileName()),
+                normalizeText(title) == null ? storedObject.originalFileName() : normalizeText(title),
+                normalizeText(description),
+                null,
+                storedObject.storagePath(),
+                storedObject.mimeType(),
+                storedObject.sizeBytes(),
+                storedObject.originalFileName()
+        );
+        return resourceRepository.save(resource);
+    }
+
+    public void deleteResource(Long id) {
+        MindVaultResource resource = requireOwnedResource(id);
+        supabaseStorageService.delete(resource.getStoragePath());
+        resourceRepository.delete(resource);
+    }
+
     public MindVaultSnapshot snapshot() {
         Long userId = currentUserService.requireCurrentUserId();
         return new MindVaultSnapshot(
                 subjectRepository.findAllByUserIdOrderByUpdatedAtDesc(userId),
                 sprintRepository.findAllByUserIdOrderByUpdatedAtDesc(userId),
                 itemRepository.findAllByUserIdOrderByUpdatedAtDesc(userId),
-                reviewLogRepository.findAllByUserIdOrderByCreatedAtDesc(userId)
+                reviewLogRepository.findAllByUserIdOrderByCreatedAtDesc(userId),
+                supabaseStorageService.isConfigured()
         );
     }
 
@@ -280,9 +366,17 @@ public class MindVaultService {
     }
 
     static List<MindVaultLearningItem> buildQueue(List<MindVaultLearningItem> items) {
-        LocalDate today = today();
+        return buildQueue(items, today());
+    }
+
+    public List<MindVaultLearningItem> queue(LocalDate date) {
+        return buildQueue(listItems(), date == null ? today() : date);
+    }
+
+    static List<MindVaultLearningItem> buildQueue(List<MindVaultLearningItem> items, LocalDate today) {
         return items.stream()
                 .filter(item -> item.getStatus() != MindVaultItemStatus.ARCHIVED && item.getStatus() != MindVaultItemStatus.MASTERED)
+                .filter(MindVaultLearningItem::isReviewEnabled)
                 .filter(item -> isDue(item, today))
                 .sorted(queueComparator(today))
                 .limit(25)
@@ -327,9 +421,10 @@ public class MindVaultService {
     private static Comparator<MindVaultLearningItem> queueComparator(LocalDate today) {
         return Comparator
                 .comparing((MindVaultLearningItem item) -> effectiveDueDate(item, today))
-                .thenComparing(MindVaultLearningItem::getPriority, Comparator.reverseOrder())
+                .thenComparing(MindVaultLearningItem::getImportance, Comparator.reverseOrder())
                 .thenComparing(MindVaultLearningItem::getMasteryScore)
                 .thenComparing(MindVaultLearningItem::getDifficulty, Comparator.reverseOrder())
+                .thenComparing((MindVaultLearningItem item) -> item.getLearningType() == MindVaultLearningType.IMPORTANT_TOPIC ? 0 : 1)
                 .thenComparing(MindVaultLearningItem::getUpdatedAt, Comparator.nullsLast(Comparator.reverseOrder()));
     }
 
@@ -361,6 +456,12 @@ public class MindVaultService {
             throw new AccessDeniedException("Learning item does not belong to the current user");
         }
         return item;
+    }
+
+    private MindVaultResource requireOwnedResource(Long id) {
+        Long userId = currentUserService.requireCurrentUserId();
+        return resourceRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new IllegalArgumentException("Resource not found"));
     }
 
     private MindVaultSubject resolveSubject(Long id) {
@@ -426,11 +527,45 @@ public class MindVaultService {
         return Math.max(min, Math.min(max, candidate));
     }
 
+    private static MindVaultLearningType resolveLearningType(MindVaultLearningType learningType, MindVaultItemSource source) {
+        if (learningType != null) {
+            return learningType;
+        }
+        return source == MindVaultItemSource.RANDOM ? MindVaultLearningType.RANDOM_LEARNING : MindVaultLearningType.IMPORTANT_TOPIC;
+    }
+
+    private static boolean isFileResource(MindVaultResourceType resourceType) {
+        return resourceType == MindVaultResourceType.PDF
+                || resourceType == MindVaultResourceType.DOCX
+                || resourceType == MindVaultResourceType.IMAGE
+                || resourceType == MindVaultResourceType.NOTEBOOK_FILE
+                || resourceType == MindVaultResourceType.OTHER_FILE;
+    }
+
+    private static MindVaultResourceType detectResourceType(String mimeType, String fileName) {
+        String normalizedMime = mimeType == null ? "" : mimeType.toLowerCase(Locale.ROOT);
+        String normalizedName = fileName == null ? "" : fileName.toLowerCase(Locale.ROOT);
+        if (normalizedMime.contains("pdf") || normalizedName.endsWith(".pdf")) {
+            return MindVaultResourceType.PDF;
+        }
+        if (normalizedMime.startsWith("image/")) {
+            return MindVaultResourceType.IMAGE;
+        }
+        if (normalizedMime.contains("word") || normalizedName.endsWith(".docx") || normalizedName.endsWith(".doc")) {
+            return MindVaultResourceType.DOCX;
+        }
+        if (normalizedName.endsWith(".ipynb") || normalizedName.endsWith(".one") || normalizedName.endsWith(".notebook")) {
+            return MindVaultResourceType.NOTEBOOK_FILE;
+        }
+        return MindVaultResourceType.OTHER_FILE;
+    }
+
     public record MindVaultSnapshot(
             List<MindVaultSubject> subjects,
             List<MindVaultSprint> sprints,
             List<MindVaultLearningItem> items,
-            List<MindVaultReviewLog> reviews
+            List<MindVaultReviewLog> reviews,
+            boolean fileUploadsEnabled
     ) {
     }
 }

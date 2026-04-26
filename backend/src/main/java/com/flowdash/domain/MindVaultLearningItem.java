@@ -5,6 +5,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -42,6 +43,10 @@ public class MindVaultLearningItem extends AuditFields {
     @Column(nullable = false)
     private MindVaultItemSource source = MindVaultItemSource.PLANNED;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "learning_type", nullable = false)
+    private MindVaultLearningType learningType = MindVaultLearningType.IMPORTANT_TOPIC;
+
     @Column(nullable = false)
     private String title;
 
@@ -60,6 +65,9 @@ public class MindVaultLearningItem extends AuditFields {
     private Integer priority = 3;
 
     @Column(nullable = false)
+    private Integer importance = 3;
+
+    @Column(nullable = false)
     private Integer difficulty = 3;
 
     @Column(name = "mastery_score", nullable = false)
@@ -73,6 +81,9 @@ public class MindVaultLearningItem extends AuditFields {
 
     @Column(name = "success_count", nullable = false)
     private Integer successCount = 0;
+
+    @Column(name = "lapse_count", nullable = false)
+    private Integer lapseCount = 0;
 
     @Column(name = "ease_factor", nullable = false)
     private Double easeFactor = 2.1d;
@@ -89,6 +100,12 @@ public class MindVaultLearningItem extends AuditFields {
     @Column(name = "last_rating")
     private Integer lastRating;
 
+    @Column(name = "review_enabled", nullable = false)
+    private boolean reviewEnabled = true;
+
+    @Column(name = "source_label")
+    private String sourceLabel;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private MindVaultItemStatus status = MindVaultItemStatus.ACTIVE;
@@ -99,6 +116,9 @@ public class MindVaultLearningItem extends AuditFields {
     @OneToMany(mappedBy = "item", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<MindVaultReviewLog> reviewLogs = new ArrayList<>();
 
+    @OneToMany(mappedBy = "item", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    private List<MindVaultResource> resources = new ArrayList<>();
+
     protected MindVaultLearningItem() {
     }
 
@@ -107,12 +127,14 @@ public class MindVaultLearningItem extends AuditFields {
         this.subject = subject;
         this.sprint = sprint;
         this.source = source == null ? MindVaultItemSource.PLANNED : source;
+        this.learningType = this.source == MindVaultItemSource.RANDOM ? MindVaultLearningType.RANDOM_LEARNING : MindVaultLearningType.IMPORTANT_TOPIC;
         this.title = title;
         this.prompt = prompt;
         this.answer = answer;
         this.notes = notes;
         this.tags = tags;
         this.priority = priority == null ? 3 : priority;
+        this.importance = this.priority;
         this.difficulty = difficulty == null ? 3 : difficulty;
         this.masteryScore = masteryScore == null ? 15 : masteryScore;
         this.reviewStreak = reviewStreak == null ? 0 : reviewStreak;
@@ -167,6 +189,14 @@ public class MindVaultLearningItem extends AuditFields {
         this.source = source;
     }
 
+    public MindVaultLearningType getLearningType() {
+        return learningType;
+    }
+
+    public void setLearningType(MindVaultLearningType learningType) {
+        this.learningType = learningType;
+    }
+
     public String getTitle() {
         return title;
     }
@@ -215,6 +245,14 @@ public class MindVaultLearningItem extends AuditFields {
         this.priority = priority;
     }
 
+    public Integer getImportance() {
+        return importance;
+    }
+
+    public void setImportance(Integer importance) {
+        this.importance = importance;
+    }
+
     public Integer getDifficulty() {
         return difficulty;
     }
@@ -253,6 +291,14 @@ public class MindVaultLearningItem extends AuditFields {
 
     public void setSuccessCount(Integer successCount) {
         this.successCount = successCount;
+    }
+
+    public Integer getLapseCount() {
+        return lapseCount;
+    }
+
+    public void setLapseCount(Integer lapseCount) {
+        this.lapseCount = lapseCount;
     }
 
     public Double getEaseFactor() {
@@ -295,6 +341,22 @@ public class MindVaultLearningItem extends AuditFields {
         this.lastRating = lastRating;
     }
 
+    public boolean isReviewEnabled() {
+        return reviewEnabled;
+    }
+
+    public void setReviewEnabled(boolean reviewEnabled) {
+        this.reviewEnabled = reviewEnabled;
+    }
+
+    public String getSourceLabel() {
+        return sourceLabel;
+    }
+
+    public void setSourceLabel(String sourceLabel) {
+        this.sourceLabel = sourceLabel;
+    }
+
     public MindVaultItemStatus getStatus() {
         return status;
     }
@@ -317,5 +379,13 @@ public class MindVaultLearningItem extends AuditFields {
 
     public void setReviewLogs(List<MindVaultReviewLog> reviewLogs) {
         this.reviewLogs = reviewLogs;
+    }
+
+    public List<MindVaultResource> getResources() {
+        return resources;
+    }
+
+    public void setResources(List<MindVaultResource> resources) {
+        this.resources = resources;
     }
 }

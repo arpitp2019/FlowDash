@@ -34,12 +34,20 @@ spring:
   mvc:
     problemdetails:
       enabled: true
+  servlet:
+    multipart:
+      max-file-size: 25MB
+      max-request-size: 25MB
 
 server:
   port: ${PORT:8080}
   forward-headers-strategy: framework
 
 flowdash:
+  supabase:
+    url: ${SUPABASE_URL:}
+    service-role-key: ${SUPABASE_SERVICE_ROLE_KEY:}
+    storage-bucket: ${SUPABASE_STORAGE_BUCKET:}
   ai:
     provider: ${FLOWDASH_AI_PROVIDER:mock}
     model: ${FLOWDASH_AI_MODEL:flowdash-mock}

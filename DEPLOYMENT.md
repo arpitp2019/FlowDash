@@ -36,9 +36,14 @@ The web service uses:
 - `FLOWDASH_DB_PASSWORD` from the Render database
 - `GOOGLE_CLIENT_ID`
 - `GOOGLE_CLIENT_SECRET`
+- `SUPABASE_URL` for MindVault file attachments
+- `SUPABASE_SERVICE_ROLE_KEY` for backend-only Supabase Storage uploads
+- `SUPABASE_STORAGE_BUCKET` for the attachment bucket name
 - any `FLOWDASH_AI_*` keys you want enabled
 
 The service is configured to auto-deploy from `main` after checks pass.
+
+MindVault text notes and links work without Supabase. File uploads need the three Supabase variables above; keep the service role key only in Render environment variables and never expose it to the browser.
 
 ## 3. Google OAuth
 
@@ -64,6 +69,6 @@ Useful commands:
 
 - `npm --prefix frontend run lint`
 - `npm --prefix frontend run smoke:pages`
+- `npm --prefix frontend run smoke:mindvault`
 - `npm run build:render`
 - `backend\\mvnw.cmd -f backend/pom.xml test`
-

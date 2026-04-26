@@ -22,13 +22,14 @@ public final class MindVaultScheduler {
         int reviewStreak = rating.getValue() >= 2 ? valueOrDefault(item.getReviewStreak(), 0) + 1 : 0;
         int reviewCount = valueOrDefault(item.getReviewCount(), 0) + 1;
         int successCount = valueOrDefault(item.getSuccessCount(), 0) + (rating.getValue() >= 2 ? 1 : 0);
+        int lapseCount = valueOrDefault(item.getLapseCount(), 0) + (rating == MindVaultReviewRating.AGAIN ? 1 : 0);
         double easeFactor = clamp(valueOrDefault(item.getEaseFactor(), 2.1d) + easeAdjustment(rating), MIN_EASE, MAX_EASE);
         int nextIntervalDays = nextInterval(previousIntervalDays, easeFactor, rating);
 
         boolean mastered = mastery >= targetMastery(item) && reviewStreak >= MIN_MASTERED_STREAK;
         MindVaultItemStatus status = mastered ? MindVaultItemStatus.MASTERED : MindVaultItemStatus.ACTIVE;
         LocalDate nextReviewDate = switch (rating) {
-            case AGAIN, HARD -> today;
+            case AGAIN, HARD -> today.plusDays(1);
             case GOOD, EASY -> today.plusDays(mastered ? Math.max(7, nextIntervalDays) : nextIntervalDays);
         };
 
@@ -38,6 +39,7 @@ public final class MindVaultScheduler {
                 reviewStreak,
                 reviewCount,
                 successCount,
+                lapseCount,
                 easeFactor,
                 nextIntervalDays,
                 status,
@@ -112,6 +114,7 @@ public final class MindVaultScheduler {
             int reviewStreak,
             int reviewCount,
             int successCount,
+            int lapseCount,
             double easeFactor,
             int nextIntervalDays,
             MindVaultItemStatus status,

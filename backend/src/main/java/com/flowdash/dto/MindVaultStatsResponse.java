@@ -8,13 +8,17 @@ public record MindVaultStatsResponse(
         long totalSprints,
         long activeSprints,
         long totalItems,
+        long importantItems,
         long randomItems,
+        long resourceCount,
         long dueToday,
         long overdue,
         long mastered,
+        long learnedThisWeek,
         long reviewsThisWeek,
         int averageMastery,
         int studyStreak,
-        LocalDate nextDeadline
+        LocalDate nextDeadline,
+        boolean fileUploadsEnabled
 ) {
 }

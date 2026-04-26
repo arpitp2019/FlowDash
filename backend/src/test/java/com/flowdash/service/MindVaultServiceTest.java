@@ -5,10 +5,14 @@ import com.flowdash.domain.AuthProvider;
 import com.flowdash.domain.MindVaultItemSource;
 import com.flowdash.domain.MindVaultItemStatus;
 import com.flowdash.domain.MindVaultLearningItem;
+import com.flowdash.domain.MindVaultResource;
+import com.flowdash.domain.MindVaultResourceType;
 import com.flowdash.domain.MindVaultSprint;
 import com.flowdash.domain.MindVaultSprintStatus;
 import com.flowdash.domain.MindVaultSubject;
+import com.flowdash.dto.MindVaultResourceRequest;
 import com.flowdash.repository.MindVaultLearningItemRepository;
+import com.flowdash.repository.MindVaultResourceRepository;
 import com.flowdash.repository.MindVaultReviewLogRepository;
 import com.flowdash.repository.MindVaultSprintRepository;
 import com.flowdash.repository.MindVaultSubjectRepository;
@@ -20,6 +24,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -30,6 +35,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -47,6 +53,12 @@ class MindVaultServiceTest {
 
     @Mock
     private MindVaultReviewLogRepository reviewLogRepository;
+
+    @Mock
+    private MindVaultResourceRepository resourceRepository;
+
+    @Mock
+    private SupabaseStorageService supabaseStorageService;
 
     @Mock
     private CurrentUserService currentUserService;
@@ -133,6 +145,72 @@ class MindVaultServiceTest {
         assertThat(saved.getReviewCount()).isEqualTo(5);
         assertThat(log.getRating()).isEqualTo(3);
         assertThat(log.getMasteryAfter()).isGreaterThanOrEqualTo(80);
+    }
+
+    @Test
+    void createResourceSavesTextMetadataForOwnedItem() {
+        AppUser user = user(1L);
+        MindVaultLearningItem item = item(21L, null, null, MindVaultItemStatus.ACTIVE, MindVaultItemSource.PLANNED, LocalDate.now(), 3, 20);
+
+        when(currentUserService.requireCurrentUserId()).thenReturn(1L);
+        when(currentUserService.requireCurrentUser()).thenReturn(user);
+        when(itemRepository.findById(21L)).thenReturn(Optional.of(item));
+        when(resourceRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MindVaultResource resource = service.createResource(21L, new MindVaultResourceRequest(
+                MindVaultResourceType.TEXT,
+                "Class note",
+                "Use this explanation as the recall seed.",
+                null
+        ));
+
+        assertThat(resource.getUser()).isEqualTo(user);
+        assertThat(resource.getItem()).isEqualTo(item);
+        assertThat(resource.getResourceType()).isEqualTo(MindVaultResourceType.TEXT);
+        assertThat(resource.getTitle()).isEqualTo("Class note");
+        assertThat(resource.getDescription()).contains("recall seed");
+        assertThat(resource.getStoragePath()).isNull();
+    }
+
+    @Test
+    void uploadResourceSavesMetadataOnlyAfterSupabaseUploadSucceeds() {
+        AppUser user = user(1L);
+        MindVaultLearningItem item = item(22L, null, null, MindVaultItemStatus.ACTIVE, MindVaultItemSource.PLANNED, LocalDate.now(), 3, 20);
+        MultipartFile file = org.mockito.Mockito.mock(MultipartFile.class);
+
+        when(currentUserService.requireCurrentUserId()).thenReturn(1L);
+        when(currentUserService.requireCurrentUser()).thenReturn(user);
+        when(itemRepository.findById(22L)).thenReturn(Optional.of(item));
+        when(supabaseStorageService.upload(1L, 22L, file)).thenReturn(new SupabaseStorageService.StoredObject(
+                "mindvault/1/22/photo.png",
+                "image/png",
+                1200L,
+                "photo.png"
+        ));
+        when(resourceRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        MindVaultResource resource = service.uploadResource(22L, "Lecture image", "Board diagram", file);
+
+        assertThat(resource.getResourceType()).isEqualTo(MindVaultResourceType.IMAGE);
+        assertThat(resource.getStoragePath()).isEqualTo("mindvault/1/22/photo.png");
+        assertThat(resource.getMimeType()).isEqualTo("image/png");
+        assertThat(resource.getOriginalFileName()).isEqualTo("photo.png");
+        assertThat(resource.getSizeBytes()).isEqualTo(1200L);
+    }
+
+    @Test
+    void failedSupabaseUploadDoesNotCreateResourceMetadata() {
+        MindVaultLearningItem item = item(23L, null, null, MindVaultItemStatus.ACTIVE, MindVaultItemSource.PLANNED, LocalDate.now(), 3, 20);
+        MultipartFile file = org.mockito.Mockito.mock(MultipartFile.class);
+
+        when(currentUserService.requireCurrentUserId()).thenReturn(1L);
+        when(itemRepository.findById(23L)).thenReturn(Optional.of(item));
+        when(supabaseStorageService.upload(1L, 23L, file)).thenThrow(new IllegalStateException("Supabase upload failed"));
+
+        assertThatThrownBy(() -> service.uploadResource(23L, "Broken upload", null, file))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Supabase upload failed");
+        verify(resourceRepository, never()).save(any());
     }
 
     private static MindVaultLearningItem item(Long id, MindVaultSubject subject, MindVaultSprint sprint, MindVaultItemStatus status, MindVaultItemSource source, LocalDate dueDate, int priority, int mastery) {

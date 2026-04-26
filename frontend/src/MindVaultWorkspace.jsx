@@ -2,16 +2,19 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import {
   apiMindVaultCreateItem,
+  apiMindVaultCreateResource,
   apiMindVaultCreateSprint,
   apiMindVaultCreateSubject,
   apiMindVaultDeleteItem,
+  apiMindVaultDeleteResource,
   apiMindVaultDeleteSprint,
   apiMindVaultDeleteSubject,
   apiMindVaultOverview,
   apiMindVaultReviewItem,
   apiMindVaultUpdateItem,
   apiMindVaultUpdateSprint,
-  apiMindVaultUpdateSubject
+  apiMindVaultUpdateSubject,
+  apiMindVaultUploadResource
 } from './api';
 
 const subjectDefaults = {
@@ -36,40 +39,45 @@ const sprintDefaults = {
 };
 
 const itemDefaults = {
+  learningType: 'IMPORTANT_TOPIC',
   subjectId: '',
   sprintId: '',
-  source: 'PLANNED',
   title: '',
   prompt: '',
   answer: '',
   notes: '',
   tags: '',
-  priority: 3,
+  importance: 3,
   difficulty: 3,
+  sourceLabel: '',
+  reviewEnabled: true,
   dueDate: '',
   status: 'ACTIVE'
 };
 
+const resourceDefaults = {
+  resourceType: 'TEXT',
+  title: '',
+  description: '',
+  url: '',
+  file: null
+};
+
 const reviewRatings = [
-  { value: 0, label: 'Again', hint: 'Restart the interval' },
-  { value: 1, label: 'Hard', hint: 'Needs another pass' },
-  { value: 2, label: 'Good', hint: 'Stick with the plan' },
+  { value: 0, label: 'Again', hint: 'Review tomorrow' },
+  { value: 1, label: 'Hard', hint: 'Keep it close' },
+  { value: 2, label: 'Good', hint: 'Extend the interval' },
   { value: 3, label: 'Easy', hint: 'Push it further out' }
 ];
 
-const itemFilterOptions = [
-  { value: 'all', label: 'All items' },
+const libraryFilters = [
+  { value: 'all', label: 'All' },
+  { value: 'important', label: 'Important' },
+  { value: 'random', label: 'Random' },
   { value: 'due', label: 'Due' },
-  { value: 'overdue', label: 'Overdue' },
   { value: 'mastered', label: 'Mastered' },
-  { value: 'random', label: 'Random' }
-];
-
-const sortOptions = [
-  { value: 'due', label: 'Sort: Due' },
-  { value: 'mastery', label: 'Sort: Mastery' },
-  { value: 'recent', label: 'Sort: Recent' },
-  { value: 'priority', label: 'Sort: Priority' }
+  { value: 'archived', label: 'Archived' },
+  { value: 'resources', label: 'Has resources' }
 ];
 
 export default function MindVaultPage() {
@@ -77,16 +85,16 @@ export default function MindVaultPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [itemForm, setItemForm] = useState(itemDefaults);
+  const [itemEditId, setItemEditId] = useState(null);
+  const [resourceForm, setResourceForm] = useState(resourceDefaults);
   const [subjectForm, setSubjectForm] = useState(subjectDefaults);
   const [subjectEditId, setSubjectEditId] = useState(null);
   const [sprintForm, setSprintForm] = useState(sprintDefaults);
   const [sprintEditId, setSprintEditId] = useState(null);
-  const [itemForm, setItemForm] = useState(itemDefaults);
-  const [itemEditId, setItemEditId] = useState(null);
   const [search, setSearch] = useState('');
+  const [filter, setFilter] = useState('all');
   const [subjectFilter, setSubjectFilter] = useState('all');
-  const [itemFilter, setItemFilter] = useState('all');
-  const [sort, setSort] = useState('due');
   const [selectedQueueId, setSelectedQueueId] = useState(null);
   const [showAnswer, setShowAnswer] = useState(false);
   const [reviewNote, setReviewNote] = useState('');
@@ -97,13 +105,7 @@ export default function MindVaultPage() {
     try {
       const data = await apiMindVaultOverview();
       setOverview(data);
-      setSelectedQueueId((current) => {
-        const queue = data?.queue || [];
-        if (!queue.length) {
-          return null;
-        }
-        return queue.some((item) => item.id === current) ? current : queue[0].id;
-      });
+      setSelectedQueueId((current) => firstQueueId(data?.queue || [], current));
       setShowAnswer(false);
     } catch (err) {
       setError(err.message);
@@ -113,35 +115,11 @@ export default function MindVaultPage() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-
-    (async () => {
-      setLoading(true);
-      setError('');
-      try {
-        const data = await apiMindVaultOverview();
-        if (cancelled) return;
-        setOverview(data);
-        setSelectedQueueId((current) => {
-          const queue = data?.queue || [];
-          if (!queue.length) {
-            return null;
-          }
-          return queue.some((item) => item.id === current) ? current : queue[0].id;
-        });
-        setShowAnswer(false);
-      } catch (err) {
-        if (cancelled) return;
-        setError(err.message);
-      }
-      if (cancelled) return;
-      setLoading(false);
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    const timer = window.setTimeout(() => {
+      refresh();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [refresh]);
 
   const subjects = useMemo(() => overview?.subjects ?? [], [overview]);
   const sprints = useMemo(() => overview?.sprints ?? [], [overview]);
@@ -151,61 +129,161 @@ export default function MindVaultPage() {
   const analytics = useMemo(() => overview?.analytics ?? { subjects: [], forecast: [] }, [overview]);
   const recentReviews = useMemo(() => overview?.recentReviews ?? [], [overview]);
 
-  const selectedQueueItem = useMemo(() => {
-    if (!queue.length) {
-      return null;
-    }
-    return queue.find((item) => item.id === selectedQueueId) || queue[0];
-  }, [queue, selectedQueueId]);
-
-  const subjectOptions = useMemo(() => subjects.map((subject) => ({ value: String(subject.id), label: subject.title })), [subjects]);
-
   const sprintOptions = useMemo(() => {
-    if (itemForm.subjectId === '') {
+    if (!itemForm.subjectId) {
       return sprints;
     }
     return sprints.filter((sprint) => String(sprint.subjectId || '') === itemForm.subjectId);
   }, [sprints, itemForm.subjectId]);
 
+  const selectedQueueItem = useMemo(() => {
+    if (!queue.length) return null;
+    return queue.find((item) => item.id === selectedQueueId) || queue[0];
+  }, [queue, selectedQueueId]);
+
   const filteredItems = useMemo(() => {
-    const searchTerm = search.trim().toLowerCase();
+    const term = search.trim().toLowerCase();
     return items
       .filter((item) => {
-        if (subjectFilter !== 'all' && String(item.subjectId || '') !== subjectFilter) {
-          return false;
-        }
-        if (searchTerm) {
-          const haystack = [
-            item.title,
-            item.prompt,
-            item.answer,
-            item.notes,
-            item.subjectTitle,
-            item.sprintTitle,
-            ...(item.tags || [])
-          ]
-            .filter(Boolean)
-            .join(' ')
-            .toLowerCase();
-          if (!haystack.includes(searchTerm)) {
-            return false;
-          }
-        }
-        switch (itemFilter) {
-          case 'due':
-            return item.dueToday || item.overdue;
-          case 'overdue':
-            return item.overdue;
-          case 'mastered':
-            return item.mastered;
-          case 'random':
-            return item.source === 'RANDOM';
-          default:
-            return true;
-        }
+        if (subjectFilter !== 'all' && String(item.subjectId || '') !== subjectFilter) return false;
+        if (term && !itemSearchText(item).includes(term)) return false;
+        if (filter === 'important') return item.learningType === 'IMPORTANT_TOPIC';
+        if (filter === 'random') return item.learningType === 'RANDOM_LEARNING' || item.source === 'RANDOM';
+        if (filter === 'due') return item.dueToday || item.overdue;
+        if (filter === 'mastered') return item.mastered;
+        if (filter === 'archived') return item.status === 'ARCHIVED';
+        if (filter === 'resources') return (item.resources || []).length > 0;
+        return true;
       })
-      .sort((left, right) => sortItems(left, right, sort));
-  }, [items, search, subjectFilter, itemFilter, sort]);
+      .sort((left, right) => new Date(left.nextReviewDate || left.dueDate || 0) - new Date(right.nextReviewDate || right.dueDate || 0));
+  }, [items, search, filter, subjectFilter]);
+
+  const weakItems = useMemo(() => {
+    return items
+      .filter((item) => item.status !== 'ARCHIVED')
+      .sort((left, right) => (left.masteryScore || 0) - (right.masteryScore || 0) || (right.difficulty || 0) - (left.difficulty || 0))
+      .slice(0, 5);
+  }, [items]);
+
+  const forgottenItems = useMemo(() => {
+    return items
+      .filter((item) => item.reviewCount > 0 || item.lapseCount > 0)
+      .sort((left, right) => (right.lapseCount || 0) - (left.lapseCount || 0) || (left.masteryScore || 0) - (right.masteryScore || 0))
+      .slice(0, 5);
+  }, [items]);
+
+  const submitItem = async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      const payload = itemPayload(itemForm);
+      const saved = itemEditId ? await apiMindVaultUpdateItem(itemEditId, payload) : await apiMindVaultCreateItem(payload);
+      await saveResourceIfPresent(saved.id, resourceForm);
+      setItemEditId(null);
+      setItemForm(itemDefaults);
+      setResourceForm(resourceDefaults);
+      await refresh();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitSubject = async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      const payload = {
+        ...subjectForm,
+        title: subjectForm.title.trim(),
+        description: emptyToNull(subjectForm.description),
+        deadline: emptyToNull(subjectForm.deadline),
+        tags: emptyToNull(subjectForm.tags)
+      };
+      if (subjectEditId) {
+        await apiMindVaultUpdateSubject(subjectEditId, payload);
+      } else {
+        await apiMindVaultCreateSubject(payload);
+      }
+      setSubjectEditId(null);
+      setSubjectForm(subjectDefaults);
+      await refresh();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitSprint = async (event) => {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      const payload = {
+        ...sprintForm,
+        subjectId: parseNullableId(sprintForm.subjectId),
+        title: sprintForm.title.trim(),
+        description: emptyToNull(sprintForm.description),
+        startDate: emptyToNull(sprintForm.startDate),
+        dueDate: emptyToNull(sprintForm.dueDate),
+        estimatedSessions: Number(sprintForm.estimatedSessions) || 1,
+        completedSessions: Number(sprintForm.completedSessions) || 0
+      };
+      if (!payload.subjectId) throw new Error('Choose a subject for the sprint');
+      if (sprintEditId) {
+        await apiMindVaultUpdateSprint(sprintEditId, payload);
+      } else {
+        await apiMindVaultCreateSprint(payload);
+      }
+      setSprintEditId(null);
+      setSprintForm(sprintDefaults);
+      await refresh();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitReview = async (rating) => {
+    if (!selectedQueueItem) return;
+    setBusy(true);
+    setError('');
+    try {
+      await apiMindVaultReviewItem(selectedQueueItem.id, { rating, note: emptyToNull(reviewNote) });
+      setReviewNote('');
+      await refresh();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openItemEditor = (item) => {
+    setItemEditId(item.id);
+    setItemForm({
+      learningType: item.learningType || (item.source === 'RANDOM' ? 'RANDOM_LEARNING' : 'IMPORTANT_TOPIC'),
+      subjectId: item.subjectId ? String(item.subjectId) : '',
+      sprintId: item.sprintId ? String(item.sprintId) : '',
+      title: item.title || '',
+      prompt: item.prompt || '',
+      answer: item.answer || '',
+      notes: item.notes || '',
+      tags: joinTags(item.tags),
+      importance: item.importance ?? item.priority ?? 3,
+      difficulty: item.difficulty ?? 3,
+      sourceLabel: item.sourceLabel || '',
+      reviewEnabled: item.reviewEnabled !== false,
+      dueDate: item.dueDate || '',
+      status: item.status || 'ACTIVE'
+    });
+    setResourceForm(resourceDefaults);
+  };
 
   const openSubjectEditor = (subject) => {
     setSubjectEditId(subject.id);
@@ -234,69 +312,12 @@ export default function MindVaultPage() {
     });
   };
 
-  const openItemEditor = (item) => {
-    setItemEditId(item.id);
-    setItemForm({
-      subjectId: item.subjectId ? String(item.subjectId) : '',
-      sprintId: item.sprintId ? String(item.sprintId) : '',
-      source: item.source || 'PLANNED',
-      title: item.title || '',
-      prompt: item.prompt || '',
-      answer: item.answer || '',
-      notes: item.notes || '',
-      tags: joinTags(item.tags),
-      priority: item.priority ?? 3,
-      difficulty: item.difficulty ?? 3,
-      dueDate: item.dueDate || '',
-      status: item.status || 'ACTIVE'
-    });
-  };
-
-  const quickAddItem = () => {
-    setItemEditId(null);
-    setItemForm({
-      ...itemDefaults,
-      subjectId: subjectFilter !== 'all' ? subjectFilter : '',
-      sprintId: '',
-      source: 'RANDOM'
-    });
-  };
-
-  const resetForms = () => {
-    setSubjectEditId(null);
-    setSubjectForm(subjectDefaults);
-    setSprintEditId(null);
-    setSprintForm({
-      ...sprintDefaults,
-      subjectId: subjectFilter !== 'all' ? subjectFilter : ''
-    });
-    setItemEditId(null);
-    setItemForm({
-      ...itemDefaults,
-      subjectId: subjectFilter !== 'all' ? subjectFilter : ''
-    });
-  };
-
-  const submitSubject = async (event) => {
-    event.preventDefault();
+  const deleteItem = async (item) => {
+    if (!window.confirm(`Delete "${item.title}"?`)) return;
     setBusy(true);
-    setError('');
     try {
-      const payload = {
-        ...subjectForm,
-        tags: emptyToNull(subjectForm.tags),
-        deadline: emptyToNull(subjectForm.deadline),
-        title: subjectForm.title.trim(),
-        description: emptyToNull(subjectForm.description)
-      };
-      if (subjectEditId) {
-        await apiMindVaultUpdateSubject(subjectEditId, payload);
-      } else {
-        await apiMindVaultCreateSubject(payload);
-      }
+      await apiMindVaultDeleteItem(item.id);
       await refresh();
-      setSubjectEditId(null);
-      setSubjectForm(subjectDefaults);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -304,74 +325,11 @@ export default function MindVaultPage() {
     }
   };
 
-  const submitSprint = async (event) => {
-    event.preventDefault();
+  const deleteResource = async (resource) => {
     setBusy(true);
-    setError('');
     try {
-      const payload = {
-        ...sprintForm,
-        subjectId: parseNullableId(sprintForm.subjectId),
-        title: sprintForm.title.trim(),
-        description: emptyToNull(sprintForm.description),
-        startDate: emptyToNull(sprintForm.startDate),
-        dueDate: emptyToNull(sprintForm.dueDate),
-        estimatedSessions: Number(sprintForm.estimatedSessions) || 1,
-        completedSessions: Number(sprintForm.completedSessions) || 0
-      };
-      if (!payload.subjectId) {
-        throw new Error('Choose a subject for the sprint');
-      }
-      if (sprintEditId) {
-        await apiMindVaultUpdateSprint(sprintEditId, payload);
-      } else {
-        await apiMindVaultCreateSprint(payload);
-      }
+      await apiMindVaultDeleteResource(resource.id);
       await refresh();
-      setSprintEditId(null);
-      setSprintForm({
-        ...sprintDefaults,
-        subjectId: subjectFilter !== 'all' ? subjectFilter : ''
-      });
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const submitItem = async (event) => {
-    event.preventDefault();
-    setBusy(true);
-    setError('');
-    try {
-      const payload = {
-        ...itemForm,
-        subjectId: parseNullableId(itemForm.subjectId),
-        sprintId: parseNullableId(itemForm.sprintId),
-        title: itemForm.title.trim(),
-        prompt: emptyToNull(itemForm.prompt),
-        answer: emptyToNull(itemForm.answer),
-        notes: emptyToNull(itemForm.notes),
-        tags: emptyToNull(itemForm.tags),
-        dueDate: emptyToNull(itemForm.dueDate),
-        priority: Number(itemForm.priority) || 3,
-        difficulty: Number(itemForm.difficulty) || 3,
-        source: itemForm.source === 'RANDOM' ? 'RANDOM' : 'PLANNED',
-        status: itemForm.status || 'ACTIVE'
-      };
-      if (itemEditId) {
-        await apiMindVaultUpdateItem(itemEditId, payload);
-      } else {
-        await apiMindVaultCreateItem(payload);
-      }
-      await refresh();
-      setItemEditId(null);
-      setItemForm({
-        ...itemDefaults,
-        subjectId: subjectFilter !== 'all' ? subjectFilter : '',
-        source: itemForm.source === 'RANDOM' ? 'RANDOM' : 'PLANNED'
-      });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -380,11 +338,8 @@ export default function MindVaultPage() {
   };
 
   const deleteSubject = async (subject) => {
-    if (!window.confirm(`Delete "${subject.title}"? This will detach linked sprints and topics.`)) {
-      return;
-    }
+    if (!window.confirm(`Delete "${subject.title}"? Linked topics will stay in the library.`)) return;
     setBusy(true);
-    setError('');
     try {
       await apiMindVaultDeleteSubject(subject.id);
       await refresh();
@@ -396,11 +351,8 @@ export default function MindVaultPage() {
   };
 
   const deleteSprint = async (sprint) => {
-    if (!window.confirm(`Delete sprint "${sprint.title}"? Linked topics will be detached.`)) {
-      return;
-    }
+    if (!window.confirm(`Delete "${sprint.title}"? Linked topics will stay in the library.`)) return;
     setBusy(true);
-    setError('');
     try {
       await apiMindVaultDeleteSprint(sprint.id);
       await refresh();
@@ -411,44 +363,7 @@ export default function MindVaultPage() {
     }
   };
 
-  const deleteItem = async (item) => {
-    if (!window.confirm(`Delete topic "${item.title}"?`)) {
-      return;
-    }
-    setBusy(true);
-    setError('');
-    try {
-      await apiMindVaultDeleteItem(item.id);
-      await refresh();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const submitReview = async (rating) => {
-    if (!selectedQueueItem) {
-      return;
-    }
-    setBusy(true);
-    setError('');
-    try {
-      await apiMindVaultReviewItem(selectedQueueItem.id, {
-        rating,
-        note: emptyToNull(reviewNote)
-      });
-      setReviewNote('');
-      await refresh();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const queueGoal = stats.dueToday || 0;
-  const mindVault = {
+  const context = {
     subjects,
     sprints,
     items,
@@ -456,6 +371,10 @@ export default function MindVaultPage() {
     stats,
     analytics,
     recentReviews,
+    weakItems,
+    forgottenItems,
+    filteredItems,
+    sprintOptions,
     selectedQueueItem,
     selectedQueueId,
     setSelectedQueueId,
@@ -463,40 +382,40 @@ export default function MindVaultPage() {
     setShowAnswer,
     reviewNote,
     setReviewNote,
+    itemForm,
+    setItemForm,
+    itemEditId,
+    resourceForm,
+    setResourceForm,
     subjectForm,
     setSubjectForm,
     subjectEditId,
     sprintForm,
     setSprintForm,
     sprintEditId,
-    itemForm,
-    setItemForm,
-    itemEditId,
     search,
     setSearch,
+    filter,
+    setFilter,
     subjectFilter,
     setSubjectFilter,
-    itemFilter,
-    setItemFilter,
-    sort,
-    setSort,
-    subjectOptions,
-    sprintOptions,
-    filteredItems,
-    queueGoal,
     busy,
-    quickAddItem,
-    resetForms,
-    openSubjectEditor,
-    openSprintEditor,
-    openItemEditor,
+    submitItem,
+    submitReview,
     submitSubject,
     submitSprint,
-    submitItem,
+    openItemEditor,
+    openSubjectEditor,
+    openSprintEditor,
+    deleteItem,
+    deleteResource,
     deleteSubject,
     deleteSprint,
-    deleteItem,
-    submitReview
+    resetCapture: () => {
+      setItemEditId(null);
+      setItemForm(itemDefaults);
+      setResourceForm(resourceDefaults);
+    }
   };
 
   return (
@@ -504,118 +423,302 @@ export default function MindVaultPage() {
       <div className="page-header">
         <div>
           <p className="eyebrow">MindVault</p>
-          <h2>Learning management with subjects, sprints, and spaced review.</h2>
-          <p className="lead">
-            Use separate pages for planning, library, review, and insights so each screen has one job.
-          </p>
+          <h2>Capture learning, then let the review queue bring it back.</h2>
+          <p className="lead">A lightweight LMS for important topics, random learning, resources, and spaced repetition.</p>
         </div>
       </div>
 
       <nav className="mindvault-subnav" aria-label="MindVault sections">
-        <NavLink to="overview" className={({ isActive }) => `mindvault-subnav-link${isActive ? ' active' : ''}`}>
-          Overview
-        </NavLink>
-        <NavLink to="plan" className={({ isActive }) => `mindvault-subnav-link${isActive ? ' active' : ''}`}>
-          Plan
-        </NavLink>
-        <NavLink to="library" className={({ isActive }) => `mindvault-subnav-link${isActive ? ' active' : ''}`}>
-          Library
-        </NavLink>
-        <NavLink to="queue" className={({ isActive }) => `mindvault-subnav-link${isActive ? ' active' : ''}`}>
-          Review Queue
-        </NavLink>
-        <NavLink to="insights" className={({ isActive }) => `mindvault-subnav-link${isActive ? ' active' : ''}`}>
-          Insights
-        </NavLink>
+        <NavLink to="inbox" className={({ isActive }) => `mindvault-subnav-link${isActive ? ' active' : ''}`}>Inbox</NavLink>
+        <NavLink to="review" className={({ isActive }) => `mindvault-subnav-link${isActive ? ' active' : ''}`}>Review</NavLink>
+        <NavLink to="library" className={({ isActive }) => `mindvault-subnav-link${isActive ? ' active' : ''}`}>Library</NavLink>
+        <NavLink to="subjects" className={({ isActive }) => `mindvault-subnav-link${isActive ? ' active' : ''}`}>Subjects</NavLink>
+        <NavLink to="insights" className={({ isActive }) => `mindvault-subnav-link${isActive ? ' active' : ''}`}>Insights</NavLink>
       </nav>
 
       {error ? <div className="notice error">{error}</div> : null}
-      {loading ? <div className="notice">Loading your learning plan...</div> : null}
+      {loading ? <div className="notice">Loading MindVault...</div> : null}
 
       <Routes>
-        <Route index element={<Navigate to="overview" replace />} />
-        <Route path="overview" element={<MindVaultOverviewPage mindVault={mindVault} />} />
-        <Route path="plan" element={<MindVaultPlanPage mindVault={mindVault} />} />
-        <Route path="library" element={<MindVaultLibraryPage mindVault={mindVault} />} />
-        <Route path="queue" element={<MindVaultQueuePage mindVault={mindVault} />} />
-        <Route path="insights" element={<MindVaultInsightsPage mindVault={mindVault} />} />
+        <Route index element={<Navigate to="review" replace />} />
+        <Route path="inbox" element={<InboxPage mindVault={context} />} />
+        <Route path="review" element={<ReviewPage mindVault={context} />} />
+        <Route path="library" element={<LibraryPage mindVault={context} />} />
+        <Route path="subjects" element={<SubjectsPage mindVault={context} />} />
+        <Route path="insights" element={<InsightsPage mindVault={context} />} />
       </Routes>
     </section>
   );
 }
 
-function MindVaultOverviewPage({ mindVault }) {
-  const { stats, queueGoal, recentReviews } = mindVault;
-
+function InboxPage({ mindVault }) {
   return (
-    <div className="mindvault-column">
-      <div className="mindvault-hero">
-        <StatCard label="Due today" value={stats.dueToday ?? 0} caption={`${queueGoal} items to review`} />
-        <StatCard label="Overdue" value={stats.overdue ?? 0} caption="Needs immediate attention" />
-        <StatCard label="Mastered" value={stats.mastered ?? 0} caption="Topics behind you now" />
-        <StatCard label="Study streak" value={stats.studyStreak ?? 0} caption="Days with reviews in a row" />
-      </div>
-
-      <div className="card-grid">
-        <article className="feature-card">
-          <p className="eyebrow">Plan</p>
-          <h3>Subjects and sprints</h3>
-          <p>Map what to learn, attach a deadline, and keep the learning path small enough to finish.</p>
-          <NavLink className="button" to="/vault/plan">
-            Open plan
-          </NavLink>
-        </article>
-        <article className="feature-card">
-          <p className="eyebrow">Library</p>
-          <h3>Topics and random learning</h3>
-          <p>Capture prompts, notes, and review cards in one searchable library.</p>
-          <NavLink className="button" to="/vault/library">
-            Open library
-          </NavLink>
-        </article>
-        <article className="feature-card">
-          <p className="eyebrow">Queue</p>
-          <h3>Daily review flow</h3>
-          <p>Work through the items due today with a simple recall session.</p>
-          <NavLink className="button" to="/vault/queue">
-            Open queue
-          </NavLink>
-        </article>
-        <article className="feature-card">
-          <p className="eyebrow">Insights</p>
-          <h3>Forecast and mastery</h3>
-          <p>See which subjects need attention and how the next few days are shaping up.</p>
-          <NavLink className="button" to="/vault/insights">
-            Open insights
-          </NavLink>
-        </article>
-      </div>
+    <div className="mindvault-layout lms-layout">
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Inbox</p>
+            <h3>Capture today&apos;s learning</h3>
+          </div>
+          <button className="button secondary" type="button" onClick={mindVault.resetCapture}>Clear</button>
+        </div>
+        <CaptureForm mindVault={mindVault} submitLabel={mindVault.itemEditId ? 'Update learning' : 'Save learning'} />
+      </section>
 
       <section className="panel">
         <div className="panel-header">
           <div>
-            <p className="eyebrow">Recent reviews</p>
-            <h3>Latest spaced-repetition activity</h3>
+            <p className="eyebrow">Today</p>
+            <h3>What this system is tracking</h3>
           </div>
-          <span className="muted">{recentReviews.length} shown</span>
+        </div>
+        <div className="mindvault-hero compact">
+          <StatCard label="Learned this week" value={mindVault.stats.learnedThisWeek ?? 0} caption="New entries" />
+          <StatCard label="Resources" value={mindVault.stats.resourceCount ?? 0} caption="Files, links, notes" />
+          <StatCard label="Due today" value={mindVault.stats.dueToday ?? 0} caption="Review load" />
+          <StatCard label="Overdue" value={mindVault.stats.overdue ?? 0} caption="Needs attention" />
         </div>
         <div className="entity-list">
-          {recentReviews.length === 0 ? <div className="empty-state">No recent reviews yet.</div> : null}
-          {recentReviews.map((review) => (
-            <article key={review.id} className="entity-card">
+          {mindVault.items.slice(0, 5).map((item) => (
+            <LearningCard key={item.id} item={item} compact onEdit={() => mindVault.openItemEditor(item)} />
+          ))}
+          {mindVault.items.length === 0 ? <div className="empty-state">Start with one thing you learned today.</div> : null}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ReviewPage({ mindVault }) {
+  const item = mindVault.selectedQueueItem;
+  return (
+    <div className="mindvault-layout lms-layout">
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Review</p>
+            <h3>Due queue</h3>
+          </div>
+          <span className="muted">{mindVault.queue.length} queued</span>
+        </div>
+        <div className="queue-list">
+          {mindVault.queue.map((queueItem) => (
+            <button
+              key={queueItem.id}
+              className={`queue-item${queueItem.id === mindVault.selectedQueueId ? ' active' : ''}`}
+              onClick={() => {
+                mindVault.setSelectedQueueId(queueItem.id);
+                mindVault.setShowAnswer(false);
+              }}
+            >
+              <strong>{queueItem.title}</strong>
+              <span>{queueItem.queueReason || 'review'} - mastery {queueItem.masteryScore}%</span>
+            </button>
+          ))}
+          {mindVault.queue.length === 0 ? <div className="empty-state">No reviews due. Capture something new or enjoy the quiet.</div> : null}
+        </div>
+      </section>
+
+      <section className="panel study-panel">
+        {item ? (
+          <>
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">{learningTypeLabel(item)}</p>
+                <h3>{item.title}</h3>
+              </div>
+              <button className="button secondary" type="button" onClick={() => mindVault.setShowAnswer((current) => !current)}>
+                {mindVault.showAnswer ? 'Hide answer' : 'Reveal answer'}
+              </button>
+            </div>
+            <div className="flashcard">
+              <div className="flashcard-side prompt">
+                <p>{item.prompt || 'Recall the main idea before revealing the answer.'}</p>
+              </div>
+              <div className={`flashcard-side answer${mindVault.showAnswer ? ' revealed' : ''}`}>
+                <p>{mindVault.showAnswer ? item.answer || item.notes || 'No answer saved yet.' : 'Answer hidden until you try to recall it.'}</p>
+              </div>
+            </div>
+            <ResourceList resources={item.resources || []} onDelete={mindVault.deleteResource} readonly />
+            <label className="field">
+              <span>Review note</span>
+              <textarea className="input textarea" rows="3" value={mindVault.reviewNote} onChange={(event) => mindVault.setReviewNote(event.target.value)} placeholder="What did I forget or remember?" />
+            </label>
+            <div className="review-actions">
+              {reviewRatings.map((rating) => (
+                <button key={rating.value} className={`rating-button rating-${rating.value}`} type="button" onClick={() => mindVault.submitReview(rating.value)} disabled={mindVault.busy}>
+                  <strong>{rating.label}</strong>
+                  <span>{rating.hint}</span>
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="empty-state">No due cards selected.</div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function LibraryPage({ mindVault }) {
+  return (
+    <div className="mindvault-column">
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Library</p>
+            <h3>Search all learning records</h3>
+          </div>
+          <span className="muted">{mindVault.filteredItems.length} shown</span>
+        </div>
+        <div className="filter-bar">
+          <input className="input" placeholder="Search title, prompt, answer, notes, tags" value={mindVault.search} onChange={(event) => mindVault.setSearch(event.target.value)} />
+          <select className="input" value={mindVault.filter} onChange={(event) => mindVault.setFilter(event.target.value)}>
+            {libraryFilters.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+          <select className="input" value={mindVault.subjectFilter} onChange={(event) => mindVault.setSubjectFilter(event.target.value)}>
+            <option value="all">All subjects</option>
+            {mindVault.subjects.map((subject) => <option key={subject.id} value={String(subject.id)}>{subject.title}</option>)}
+          </select>
+        </div>
+      </section>
+      <section className="entity-list">
+        {mindVault.filteredItems.map((item) => (
+          <LearningCard
+            key={item.id}
+            item={item}
+            onEdit={() => mindVault.openItemEditor(item)}
+            onDelete={() => mindVault.deleteItem(item)}
+            onStudy={() => mindVault.setSelectedQueueId(item.id)}
+            onResourceDelete={mindVault.deleteResource}
+          />
+        ))}
+        {mindVault.filteredItems.length === 0 ? <div className="panel empty-state">No learning records match this view.</div> : null}
+      </section>
+    </div>
+  );
+}
+
+function SubjectsPage({ mindVault }) {
+  return (
+    <div className="mindvault-layout lms-layout">
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Subjects</p>
+            <h3>Structured learning map</h3>
+          </div>
+        </div>
+        <form className="mindvault-form" onSubmit={mindVault.submitSubject}>
+          <div className="form-grid">
+            <label className="field">
+              <span>Subject</span>
+              <input className="input" value={mindVault.subjectForm.title} onChange={(event) => mindVault.setSubjectForm((current) => ({ ...current, title: event.target.value }))} placeholder="Java backend" />
+            </label>
+            <label className="field">
+              <span>Target mastery</span>
+              <input className="input" type="number" min="1" max="100" value={mindVault.subjectForm.targetMastery} onChange={(event) => mindVault.setSubjectForm((current) => ({ ...current, targetMastery: Number(event.target.value) }))} />
+            </label>
+          </div>
+          <label className="field">
+            <span>Description</span>
+            <textarea className="input textarea" rows="3" value={mindVault.subjectForm.description} onChange={(event) => mindVault.setSubjectForm((current) => ({ ...current, description: event.target.value }))} />
+          </label>
+          <div className="form-grid">
+            <label className="field">
+              <span>Deadline</span>
+              <input className="input" type="date" value={mindVault.subjectForm.deadline} onChange={(event) => mindVault.setSubjectForm((current) => ({ ...current, deadline: event.target.value }))} />
+            </label>
+            <label className="field">
+              <span>Tags</span>
+              <input className="input" value={mindVault.subjectForm.tags} onChange={(event) => mindVault.setSubjectForm((current) => ({ ...current, tags: event.target.value }))} />
+            </label>
+          </div>
+          <div className="form-actions">
+            <button className="button" disabled={mindVault.busy} type="submit">{mindVault.subjectEditId ? 'Update subject' : 'Create subject'}</button>
+          </div>
+        </form>
+
+        <form className="mindvault-form" onSubmit={mindVault.submitSprint}>
+          <div className="form-grid">
+            <label className="field">
+              <span>Subject</span>
+              <select className="input" value={mindVault.sprintForm.subjectId} onChange={(event) => mindVault.setSprintForm((current) => ({ ...current, subjectId: event.target.value }))}>
+                <option value="">Choose subject</option>
+                {mindVault.subjects.map((subject) => <option key={subject.id} value={String(subject.id)}>{subject.title}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>Sprint title</span>
+              <input className="input" value={mindVault.sprintForm.title} onChange={(event) => mindVault.setSprintForm((current) => ({ ...current, title: event.target.value }))} placeholder="Week 1 concepts" />
+            </label>
+          </div>
+          <div className="form-grid">
+            <label className="field">
+              <span>Status</span>
+              <select className="input" value={mindVault.sprintForm.status} onChange={(event) => mindVault.setSprintForm((current) => ({ ...current, status: event.target.value }))}>
+                <option value="PLANNED">PLANNED</option>
+                <option value="ACTIVE">ACTIVE</option>
+                <option value="COMPLETED">COMPLETED</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>Due date</span>
+              <input className="input" type="date" value={mindVault.sprintForm.dueDate} onChange={(event) => mindVault.setSprintForm((current) => ({ ...current, dueDate: event.target.value }))} />
+            </label>
+          </div>
+          <label className="field">
+            <span>Description</span>
+            <textarea className="input textarea" rows="2" value={mindVault.sprintForm.description} onChange={(event) => mindVault.setSprintForm((current) => ({ ...current, description: event.target.value }))} />
+          </label>
+          <div className="form-actions">
+            <button className="button secondary" disabled={mindVault.busy} type="submit">{mindVault.sprintEditId ? 'Update sprint' : 'Create sprint'}</button>
+          </div>
+        </form>
+      </section>
+
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Map</p>
+            <h3>Subjects and sprints</h3>
+          </div>
+        </div>
+        <div className="entity-list">
+          {mindVault.subjects.map((subject) => (
+            <article key={subject.id} className="entity-card">
               <div className="entity-head">
                 <div>
-                  <strong>{review.itemTitle}</strong>
-                  <p>{review.subjectTitle || 'Unassigned topic'}</p>
+                  <strong>{subject.title}</strong>
+                  <p>{subject.description || 'No description yet.'}</p>
                 </div>
-                <Badge>Rating {review.rating}</Badge>
+                <div className="card-actions">
+                  <button className="text-button" type="button" onClick={() => mindVault.openSubjectEditor(subject)}>Edit</button>
+                  <button className="text-button danger" type="button" onClick={() => mindVault.deleteSubject(subject)}>Delete</button>
+                </div>
               </div>
-              {review.note ? <p className="entity-copy">{review.note}</p> : null}
+              <ProgressRow label="Mastery" value={subject.averageMastery} target={subject.targetMastery || 100} />
               <div className="chips">
-                <Badge>Prev {review.previousIntervalDays}d</Badge>
-                <Badge>Next {review.nextIntervalDays}d</Badge>
-                <Badge>Mastery {review.masteryAfter}%</Badge>
+                <Badge>{subject.itemCount} topics</Badge>
+                <Badge>{subject.dueCount} due</Badge>
+                {subject.deadline ? <Badge>Due {formatDate(subject.deadline)}</Badge> : null}
               </div>
+            </article>
+          ))}
+          {mindVault.sprints.map((sprint) => (
+            <article key={`sprint-${sprint.id}`} className="entity-card">
+              <div className="entity-head">
+                <div>
+                  <strong>{sprint.title}</strong>
+                  <p>{sprint.subjectTitle || 'No subject'} - {sprint.description || 'Sprint'}</p>
+                </div>
+                <div className="card-actions">
+                  <button className="text-button" type="button" onClick={() => mindVault.openSprintEditor(sprint)}>Edit</button>
+                  <button className="text-button danger" type="button" onClick={() => mindVault.deleteSprint(sprint)}>Delete</button>
+                </div>
+              </div>
+              <ProgressRow label="Sprint progress" value={sprint.progress} target={100} />
             </article>
           ))}
         </div>
@@ -624,608 +727,254 @@ function MindVaultOverviewPage({ mindVault }) {
   );
 }
 
-function MindVaultPlanPage({ mindVault }) {
-  const {
-    subjects,
-    sprints,
-    subjectForm,
-    setSubjectForm,
-    subjectEditId,
-    sprintForm,
-    setSprintForm,
-    sprintEditId,
-    subjectOptions,
-    busy,
-    resetForms,
-    openSubjectEditor,
-    openSprintEditor,
-    deleteSubject,
-    deleteSprint,
-    submitSubject,
-    submitSprint
-  } = mindVault;
-
+function InsightsPage({ mindVault }) {
   return (
-    <div className="mindvault-layout">
-      <div className="mindvault-column">
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">Subjects</p>
-              <h3>Plan the learning map</h3>
-            </div>
-            <button className="button secondary" type="button" onClick={resetForms}>
-              Reset
-            </button>
+    <div className="mindvault-layout lms-layout">
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Insights</p>
+            <h3>Memory dashboard</h3>
           </div>
+          <span className="muted">{mindVault.stats.reviewsThisWeek || 0} reviews this week</span>
+        </div>
+        <div className="mindvault-hero compact">
+          <StatCard label="Important" value={mindVault.stats.importantItems ?? 0} caption="Structured topics" />
+          <StatCard label="Random" value={mindVault.stats.randomItems ?? 0} caption="Daily learning" />
+          <StatCard label="Streak" value={mindVault.stats.studyStreak ?? 0} caption="Review days" />
+          <StatCard label="Mastery" value={`${mindVault.stats.averageMastery ?? 0}%`} caption="Average recall" />
+        </div>
+        <div className="insight-grid">
+          {mindVault.analytics.subjects.map((subject) => (
+            <article key={subject.subjectId} className="insight-card">
+              <div className="entity-head">
+                <strong>{subject.title}</strong>
+                <span className="muted">{subject.itemCount} topics</span>
+              </div>
+              <ProgressRow label="Average mastery" value={subject.averageMastery} target={subject.targetMastery || 100} />
+              <div className="chips">
+                <Badge>{subject.dueCount} due</Badge>
+                <Badge>{subject.masteredCount} mastered</Badge>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
 
-          <form className="mindvault-form" onSubmit={submitSubject}>
-            <div className="form-grid">
-              <label className="field">
-                <span>Subject</span>
-                <input className="input" value={subjectForm.title} onChange={(event) => setSubjectForm((current) => ({ ...current, title: event.target.value }))} placeholder="e.g. Linear Algebra" />
-              </label>
-              <label className="field">
-                <span>Priority</span>
-                <input className="input" type="number" min="1" max="5" value={subjectForm.priority} onChange={(event) => setSubjectForm((current) => ({ ...current, priority: Number(event.target.value) }))} />
-              </label>
-            </div>
-            <label className="field">
-              <span>Description</span>
-              <textarea className="input textarea" rows="3" value={subjectForm.description} onChange={(event) => setSubjectForm((current) => ({ ...current, description: event.target.value }))} />
-            </label>
-            <div className="form-grid">
-              <label className="field">
-                <span>Target mastery</span>
-                <input className="input" type="number" min="1" max="100" value={subjectForm.targetMastery} onChange={(event) => setSubjectForm((current) => ({ ...current, targetMastery: Number(event.target.value) }))} />
-              </label>
-              <label className="field">
-                <span>Deadline</span>
-                <input className="input" type="date" value={subjectForm.deadline} onChange={(event) => setSubjectForm((current) => ({ ...current, deadline: event.target.value }))} />
-              </label>
-            </div>
-            <label className="field">
-              <span>Tags</span>
-              <input className="input" value={subjectForm.tags} onChange={(event) => setSubjectForm((current) => ({ ...current, tags: event.target.value }))} placeholder="math, semester-2" />
-            </label>
-            <label className="field checkbox">
-              <input type="checkbox" checked={subjectForm.archived} onChange={(event) => setSubjectForm((current) => ({ ...current, archived: event.target.checked }))} />
-              <span>Archive subject</span>
-            </label>
-            <div className="form-actions">
-              <button className="button" disabled={busy} type="submit">
-                {subjectEditId ? 'Update subject' : 'Create subject'}
-              </button>
-              <button className="button secondary" type="button" onClick={() => setSubjectForm(subjectDefaults)}>
-                Clear
-              </button>
-            </div>
-          </form>
-        </section>
-
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">Subject list</p>
-              <h3>Track mastery and deadlines</h3>
-            </div>
-            <span className="muted">{subjects.length} subjects</span>
+      <section className="panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Weak spots</p>
+            <h3>Topics to reinforce</h3>
           </div>
-          <div className="entity-list">
-            {subjects.length === 0 ? <div className="empty-state">Create a subject to anchor the first sprint.</div> : null}
-            {subjects.map((subject) => (
-              <article key={subject.id} className="entity-card">
-                <div className="entity-head">
-                  <div>
-                    <strong>{subject.title}</strong>
-                    <p>{subject.description || 'No description yet.'}</p>
-                  </div>
-                  <div className="card-actions">
-                    <button className="text-button" onClick={() => openSubjectEditor(subject)}>
-                      Edit
-                    </button>
-                    <button className="text-button danger" onClick={() => deleteSubject(subject)}>
-                      Delete
-                    </button>
-                  </div>
-                </div>
-                <div className="chips">
-                  <Badge>{subject.archived ? 'Archived' : 'Active'}</Badge>
-                  <Badge>{subject.itemCount} topics</Badge>
-                  <Badge>{subject.masteredCount} mastered</Badge>
-                  <Badge>{subject.dueCount} due</Badge>
-                  <Badge>Target {subject.targetMastery}%</Badge>
-                </div>
-                <ProgressRow label="Mastery" value={subject.averageMastery} target={subject.targetMastery || 100} />
-                {subject.deadline ? <p className="muted">Deadline {formatDate(subject.deadline)}</p> : null}
-              </article>
-            ))}
+        </div>
+        <MiniItemList items={mindVault.weakItems} empty="No weak topics yet." />
+        <div className="panel-header spaced">
+          <div>
+            <p className="eyebrow">Most forgotten</p>
+            <h3>Lapse history</h3>
           </div>
-        </section>
-      </div>
-
-      <div className="mindvault-column">
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">Sprints</p>
-              <h3>Work in learning sprints</h3>
+        </div>
+        <MiniItemList items={mindVault.forgottenItems} empty="No review lapses yet." />
+        <div className="forecast-grid">
+          {mindVault.analytics.forecast.map((point) => (
+            <div key={point.date} className="forecast-item">
+              <span>{formatShortDate(point.date)}</span>
+              <div className="forecast-bar"><div className="forecast-fill" style={{ width: `${Math.min(100, point.count * 12)}%` }} /></div>
+              <strong>{point.count}</strong>
             </div>
-            <span className="muted">{sprints.length} sprints</span>
-          </div>
-
-          <form className="mindvault-form" onSubmit={submitSprint}>
-            <div className="form-grid">
-              <label className="field">
-                <span>Subject</span>
-                <select className="input" value={sprintForm.subjectId} onChange={(event) => setSprintForm((current) => ({ ...current, subjectId: event.target.value }))}>
-                  <option value="">Choose a subject</option>
-                  {subjectOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                <span>Status</span>
-                <select className="input" value={sprintForm.status} onChange={(event) => setSprintForm((current) => ({ ...current, status: event.target.value }))}>
-                  <option value="PLANNED">PLANNED</option>
-                  <option value="ACTIVE">ACTIVE</option>
-                  <option value="PAUSED">PAUSED</option>
-                  <option value="COMPLETED">COMPLETED</option>
-                </select>
-              </label>
-            </div>
-            <label className="field">
-              <span>Sprint title</span>
-              <input className="input" value={sprintForm.title} onChange={(event) => setSprintForm((current) => ({ ...current, title: event.target.value }))} placeholder="Sprint 1 - Core concepts" />
-            </label>
-            <label className="field">
-              <span>Description</span>
-              <textarea className="input textarea" rows="3" value={sprintForm.description} onChange={(event) => setSprintForm((current) => ({ ...current, description: event.target.value }))} />
-            </label>
-            <div className="form-grid">
-              <label className="field">
-                <span>Start date</span>
-                <input className="input" type="date" value={sprintForm.startDate} onChange={(event) => setSprintForm((current) => ({ ...current, startDate: event.target.value }))} />
-              </label>
-              <label className="field">
-                <span>Due date</span>
-                <input className="input" type="date" value={sprintForm.dueDate} onChange={(event) => setSprintForm((current) => ({ ...current, dueDate: event.target.value }))} />
-              </label>
-            </div>
-            <div className="form-grid">
-              <label className="field">
-                <span>Estimated sessions</span>
-                <input className="input" type="number" min="1" value={sprintForm.estimatedSessions} onChange={(event) => setSprintForm((current) => ({ ...current, estimatedSessions: Number(event.target.value) }))} />
-              </label>
-              <label className="field">
-                <span>Completed sessions</span>
-                <input className="input" type="number" min="0" value={sprintForm.completedSessions} onChange={(event) => setSprintForm((current) => ({ ...current, completedSessions: Number(event.target.value) }))} />
-              </label>
-            </div>
-            <div className="form-actions">
-              <button className="button" disabled={busy} type="submit">
-                {sprintEditId ? 'Update sprint' : 'Create sprint'}
-              </button>
-              <button className="button secondary" type="button" onClick={() => setSprintForm({ ...sprintDefaults, subjectId: '' })}>
-                Clear
-              </button>
-            </div>
-          </form>
-        </section>
-
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">Sprint list</p>
-              <h3>Keep deadlines visible</h3>
-            </div>
-            <span className="muted">{sprints.length} sprints</span>
-          </div>
-          <div className="entity-list">
-            {sprints.length === 0 ? <div className="empty-state">Break a subject into a sprint to add deadlines.</div> : null}
-            {sprints.map((sprint) => (
-              <article key={sprint.id} className="entity-card">
-                <div className="entity-head">
-                  <div>
-                    <strong>{sprint.title}</strong>
-                    <p>
-                      {sprint.subjectTitle || 'No subject'} {sprint.description ? `• ${sprint.description}` : ''}
-                    </p>
-                  </div>
-                  <div className="card-actions">
-                    <button className="text-button" onClick={() => openSprintEditor(sprint)}>
-                      Edit
-                    </button>
-                    <button className="text-button danger" onClick={() => deleteSprint(sprint)}>
-                      Delete
-                    </button>
-                  </div>
-                </div>
-                <div className="chips">
-                  <Badge>{sprint.status}</Badge>
-                  <Badge>{sprint.itemCount} topics</Badge>
-                  <Badge>{sprint.masteredCount} mastered</Badge>
-                  <Badge>{sprint.dueCount} due</Badge>
-                </div>
-                <ProgressRow label="Sprint progress" value={sprint.progress} target={100} />
-                <p className="muted">
-                  {sprint.startDate ? `Starts ${formatDate(sprint.startDate)} • ` : ''}
-                  {sprint.dueDate ? `Due ${formatDate(sprint.dueDate)}` : 'No deadline'}
-                </p>
-              </article>
-            ))}
-          </div>
-        </section>
-      </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
 
-function MindVaultLibraryPage({ mindVault }) {
-  const {
-    subjects,
-    sprintOptions,
-    itemForm,
-    setItemForm,
-    itemEditId,
-    search,
-    setSearch,
-    subjectFilter,
-    setSubjectFilter,
-    itemFilter,
-    setItemFilter,
-    sort,
-    setSort,
-    filteredItems,
-    busy,
-    quickAddItem,
-    resetForms,
-    openItemEditor,
-    deleteItem,
-    submitItem,
-    setSelectedQueueId
-  } = mindVault;
-
+function CaptureForm({ mindVault, submitLabel }) {
+  const form = mindVault.itemForm;
+  const setForm = mindVault.setItemForm;
+  const resource = mindVault.resourceForm;
+  const setResource = mindVault.setResourceForm;
+  const fileUploadsEnabled = mindVault.stats.fileUploadsEnabled === true;
   return (
-    <div className="mindvault-layout">
-      <div className="mindvault-column">
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">Library</p>
-              <h3>Capture topics and random learning</h3>
-            </div>
-            <div className="mindvault-actions">
-              <button className="button secondary" type="button" onClick={quickAddItem}>
-                Quick add topic
-              </button>
-              <button className="button secondary" type="button" onClick={resetForms}>
-                Reset
-              </button>
-            </div>
-          </div>
-
-          <form className="mindvault-form" onSubmit={submitItem}>
-            <div className="form-grid">
-              <label className="field">
-                <span>Source</span>
-                <select className="input" value={itemForm.source} onChange={(event) => setItemForm((current) => ({ ...current, source: event.target.value }))}>
-                  <option value="PLANNED">PLANNED</option>
-                  <option value="RANDOM">RANDOM</option>
-                </select>
-              </label>
-              <label className="field">
-                <span>Status</span>
-                <select className="input" value={itemForm.status} onChange={(event) => setItemForm((current) => ({ ...current, status: event.target.value }))}>
-                  <option value="ACTIVE">ACTIVE</option>
-                  <option value="MASTERED">MASTERED</option>
-                  <option value="ARCHIVED">ARCHIVED</option>
-                </select>
-              </label>
-            </div>
-            <div className="form-grid">
-              <label className="field">
-                <span>Subject</span>
-                <select className="input" value={itemForm.subjectId} onChange={(event) => setItemForm((current) => ({ ...current, subjectId: event.target.value }))}>
-                  <option value="">No subject</option>
-                  {subjects.map((subject) => (
-                    <option key={subject.id} value={String(subject.id)}>
-                      {subject.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                <span>Sprint</span>
-                <select className="input" value={itemForm.sprintId} onChange={(event) => setItemForm((current) => ({ ...current, sprintId: event.target.value }))}>
-                  <option value="">No sprint</option>
-                  {sprintOptions.map((sprint) => (
-                    <option key={sprint.id} value={sprint.id}>
-                      {sprint.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <label className="field">
-              <span>Topic title</span>
-              <input className="input" value={itemForm.title} onChange={(event) => setItemForm((current) => ({ ...current, title: event.target.value }))} placeholder="Merges in red-black trees" />
-            </label>
-            <label className="field">
-              <span>Prompt</span>
-              <textarea className="input textarea" rows="3" value={itemForm.prompt} onChange={(event) => setItemForm((current) => ({ ...current, prompt: event.target.value }))} placeholder="What should I recall before reading the answer?" />
-            </label>
-            <label className="field">
-              <span>Answer / notes</span>
-              <textarea className="input textarea" rows="4" value={itemForm.answer} onChange={(event) => setItemForm((current) => ({ ...current, answer: event.target.value }))} placeholder="Write the actual explanation, formula, steps, or summary." />
-            </label>
-            <div className="form-grid">
-              <label className="field">
-                <span>Priority</span>
-                <input className="input" type="number" min="1" max="5" value={itemForm.priority} onChange={(event) => setItemForm((current) => ({ ...current, priority: Number(event.target.value) }))} />
-              </label>
-              <label className="field">
-                <span>Difficulty</span>
-                <input className="input" type="number" min="1" max="5" value={itemForm.difficulty} onChange={(event) => setItemForm((current) => ({ ...current, difficulty: Number(event.target.value) }))} />
-              </label>
-            </div>
-            <div className="form-grid">
-              <label className="field">
-                <span>Deadline</span>
-                <input className="input" type="date" value={itemForm.dueDate} onChange={(event) => setItemForm((current) => ({ ...current, dueDate: event.target.value }))} />
-              </label>
-              <label className="field">
-                <span>Tags</span>
-                <input className="input" value={itemForm.tags} onChange={(event) => setItemForm((current) => ({ ...current, tags: event.target.value }))} placeholder="arrays, exam-3" />
-              </label>
-            </div>
-            <label className="field">
-              <span>Study notes</span>
-              <textarea className="input textarea" rows="3" value={itemForm.notes} onChange={(event) => setItemForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Short context, mnemonics, or mistakes to avoid." />
-            </label>
-            <div className="form-actions">
-              <button className="button" disabled={busy} type="submit">
-                {itemEditId ? 'Update topic' : 'Create topic'}
-              </button>
-              <button className="button secondary" type="button" onClick={() => setItemForm({ ...itemDefaults, subjectId: subjectFilter !== 'all' ? subjectFilter : '' })}>
-                Clear
-              </button>
-            </div>
-          </form>
-        </section>
+    <form className="mindvault-form" onSubmit={mindVault.submitItem}>
+      <div className="segmented compact-segmented">
+        <button type="button" className={form.learningType === 'IMPORTANT_TOPIC' ? 'active' : ''} onClick={() => setForm((current) => ({ ...current, learningType: 'IMPORTANT_TOPIC' }))}>Important topic</button>
+        <button type="button" className={form.learningType === 'RANDOM_LEARNING' ? 'active' : ''} onClick={() => setForm((current) => ({ ...current, learningType: 'RANDOM_LEARNING', subjectId: '', sprintId: '' }))}>Random learning</button>
       </div>
-
-      <div className="mindvault-column">
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">Library list</p>
-              <h3>Search and study topics</h3>
-            </div>
-            <span className="muted">{filteredItems.length} shown</span>
-          </div>
-
-          <div className="filter-bar">
-            <input className="input" placeholder="Search topics, prompts, notes, or tags" value={search} onChange={(event) => setSearch(event.target.value)} />
-            <select className="input" value={subjectFilter} onChange={(event) => setSubjectFilter(event.target.value)}>
-              <option value="all">All subjects</option>
-              {subjects.map((subject) => (
-                <option key={subject.id} value={String(subject.id)}>
-                  {subject.title}
-                </option>
-              ))}
-            </select>
-            <select className="input" value={itemFilter} onChange={(event) => setItemFilter(event.target.value)}>
-              {itemFilterOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <select className="input" value={sort} onChange={(event) => setSort(event.target.value)}>
-              {sortOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="entity-list">
-            {filteredItems.length === 0 ? <div className="empty-state">No topics match the current filters.</div> : null}
-            {filteredItems.map((item) => (
-              <article key={item.id} className="entity-card">
-                <div className="entity-head">
-                  <div>
-                    <strong>{item.title}</strong>
-                    <p>
-                      {item.subjectTitle || 'Random learning'} {item.sprintTitle ? `• ${item.sprintTitle}` : ''}
-                    </p>
-                  </div>
-                  <div className="card-actions">
-                    <button className="text-button" onClick={() => openItemEditor(item)}>
-                      Edit
-                    </button>
-                    <button className="text-button" onClick={() => setSelectedQueueId(item.id)}>
-                      Study
-                    </button>
-                    <button className="text-button danger" onClick={() => deleteItem(item)}>
-                      Delete
-                    </button>
-                  </div>
-                </div>
-                <p className="entity-copy">{item.prompt || item.notes || 'No prompt yet.'}</p>
-                <div className="chips">
-                  <Badge>{item.source}</Badge>
-                  <Badge>{item.status}</Badge>
-                  {item.mastered ? <Badge>Mastered</Badge> : null}
-                  {item.overdue ? <Badge>Overdue</Badge> : null}
-                  {item.dueToday ? <Badge>Due today</Badge> : null}
-                  <Badge>Mastery {item.masteryScore}%</Badge>
-                  <Badge>Difficulty {item.difficulty}/5</Badge>
-                  <Badge>Interval {item.reviewIntervalDays}d</Badge>
-                  {item.queueReason ? <Badge>{item.queueReason}</Badge> : null}
-                </div>
-                <ProgressRow label="Mastery" value={item.masteryScore} target={100} />
-              </article>
-            ))}
-          </div>
-        </section>
+      <label className="field">
+        <span>Title</span>
+        <input className="input" value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} placeholder="What did you learn?" />
+      </label>
+      <div className="form-grid">
+        <label className="field">
+          <span>Subject</span>
+          <select className="input" value={form.subjectId} onChange={(event) => setForm((current) => ({ ...current, subjectId: event.target.value, sprintId: '' }))} disabled={form.learningType === 'RANDOM_LEARNING'}>
+            <option value="">No subject</option>
+            {mindVault.subjects.map((subject) => <option key={subject.id} value={String(subject.id)}>{subject.title}</option>)}
+          </select>
+        </label>
+        <label className="field">
+          <span>Sprint</span>
+          <select className="input" value={form.sprintId} onChange={(event) => setForm((current) => ({ ...current, sprintId: event.target.value }))} disabled={form.learningType === 'RANDOM_LEARNING'}>
+            <option value="">No sprint</option>
+            {mindVault.sprintOptions.map((sprint) => <option key={sprint.id} value={String(sprint.id)}>{sprint.title}</option>)}
+          </select>
+        </label>
       </div>
-    </div>
-  );
-}
-
-function MindVaultQueuePage({ mindVault }) {
-  const {
-    queue,
-    selectedQueueItem,
-    selectedQueueId,
-    setSelectedQueueId,
-    showAnswer,
-    setShowAnswer,
-    reviewNote,
-    setReviewNote,
-    submitReview,
-    busy
-  } = mindVault;
-
-  return (
-    <div className="mindvault-layout">
-      <div className="mindvault-column">
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">Daily queue</p>
-              <h3>Review what matters today</h3>
-            </div>
-            <span className="muted">{queue.length} queued</span>
+      <label className="field">
+        <span>Recall prompt</span>
+        <textarea className="input textarea" rows="3" value={form.prompt} onChange={(event) => setForm((current) => ({ ...current, prompt: event.target.value }))} placeholder="Question your future self should answer" />
+      </label>
+      <label className="field">
+        <span>Answer</span>
+        <textarea className="input textarea" rows="4" value={form.answer} onChange={(event) => setForm((current) => ({ ...current, answer: event.target.value }))} placeholder="The explanation, formula, concept, or takeaway" />
+      </label>
+      <label className="field">
+        <span>Quick note</span>
+        <textarea className="input textarea" rows="2" value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Context, examples, or where you learned it" />
+      </label>
+      <details className="more-options">
+        <summary>More options</summary>
+        <div className="form-grid">
+          <label className="field">
+            <span>Importance</span>
+            <input className="input" type="number" min="1" max="5" value={form.importance} onChange={(event) => setForm((current) => ({ ...current, importance: Number(event.target.value) }))} />
+          </label>
+          <label className="field">
+            <span>Difficulty</span>
+            <input className="input" type="number" min="1" max="5" value={form.difficulty} onChange={(event) => setForm((current) => ({ ...current, difficulty: Number(event.target.value) }))} />
+          </label>
+          <label className="field">
+            <span>Source</span>
+            <input className="input" value={form.sourceLabel} onChange={(event) => setForm((current) => ({ ...current, sourceLabel: event.target.value }))} placeholder="Book, class, YouTube, article" />
+          </label>
+          <label className="field">
+            <span>Tags</span>
+            <input className="input" value={form.tags} onChange={(event) => setForm((current) => ({ ...current, tags: event.target.value }))} />
+          </label>
+          <label className="field">
+            <span>Review due date</span>
+            <input className="input" type="date" value={form.dueDate} onChange={(event) => setForm((current) => ({ ...current, dueDate: event.target.value }))} />
+          </label>
+        </div>
+        <label className="field checkbox">
+          <input type="checkbox" checked={form.reviewEnabled} onChange={(event) => setForm((current) => ({ ...current, reviewEnabled: event.target.checked }))} />
+          <span>Add to review queue</span>
+        </label>
+      </details>
+      <section className="resource-box">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Resource</p>
+            <h3>Attach text, link, or file</h3>
           </div>
-
-          <div className="queue-list">
-            {queue.length === 0 ? <div className="empty-state">Everything is caught up. Add new topics or a random learning item.</div> : null}
-            {queue.map((item) => (
-              <button
-                key={item.id}
-                className={`queue-item${item.id === selectedQueueId ? ' active' : ''}`}
-                onClick={() => {
-                  setSelectedQueueId(item.id);
-                  setShowAnswer(false);
-                }}
-              >
-                <strong>{item.title}</strong>
-                <span>{item.queueReason || 'due now'}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-      </div>
-
-      <div className="mindvault-column">
-        {selectedQueueItem ? (
-          <section className="panel study-panel">
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Study session</p>
-                <h3>{selectedQueueItem.title}</h3>
-              </div>
-              <button className="button secondary" type="button" onClick={() => setShowAnswer((current) => !current)}>
-                {showAnswer ? 'Hide answer' : 'Reveal answer'}
-              </button>
-            </div>
-            <div className="chips">
-              <Badge>{selectedQueueItem.subjectTitle || 'Random'}</Badge>
-              {selectedQueueItem.sprintTitle ? <Badge>{selectedQueueItem.sprintTitle}</Badge> : null}
-              {selectedQueueItem.queueReason ? <Badge>{selectedQueueItem.queueReason}</Badge> : null}
-            </div>
-            <div className="flashcard">
-              <div className="flashcard-side prompt">
-                <p>{selectedQueueItem.prompt || 'No prompt yet. Use the answer as your recall cue.'}</p>
-              </div>
-              <div className={`flashcard-side answer${showAnswer ? ' revealed' : ''}`}>
-                <p>{showAnswer ? selectedQueueItem.answer || 'No answer saved yet.' : 'Reveal the answer after you try recalling it.'}</p>
-              </div>
-            </div>
-            <label className="field">
-              <span>Review note</span>
-              <textarea className="input textarea" rows="3" value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} placeholder="What was easy, what was hard, what to fix next time?" />
-            </label>
-            <div className="review-actions">
-              {reviewRatings.map((rating) => (
-                <button key={rating.value} className={`rating-button rating-${rating.value}`} type="button" onClick={() => submitReview(rating.value)} disabled={busy}>
-                  <strong>{rating.label}</strong>
-                  <span>{rating.hint}</span>
-                </button>
-              ))}
-            </div>
-          </section>
+        </div>
+        <div className="form-grid">
+          <label className="field">
+            <span>Resource type</span>
+            <select className="input" value={resource.resourceType} onChange={(event) => setResource((current) => ({ ...current, resourceType: event.target.value }))}>
+              <option value="TEXT">Text</option>
+              <option value="LINK">Link</option>
+              <option value="PDF" disabled={!fileUploadsEnabled}>PDF</option>
+              <option value="DOCX" disabled={!fileUploadsEnabled}>Word file</option>
+              <option value="IMAGE" disabled={!fileUploadsEnabled}>Image</option>
+              <option value="NOTEBOOK_FILE" disabled={!fileUploadsEnabled}>Notebook file</option>
+              <option value="OTHER_FILE" disabled={!fileUploadsEnabled}>Other file</option>
+            </select>
+          </label>
+          <label className="field">
+            <span>Resource title</span>
+            <input className="input" value={resource.title} onChange={(event) => setResource((current) => ({ ...current, title: event.target.value }))} />
+          </label>
+        </div>
+        {resource.resourceType === 'LINK' ? (
+          <label className="field">
+            <span>URL</span>
+            <input className="input" value={resource.url} onChange={(event) => setResource((current) => ({ ...current, url: event.target.value }))} placeholder="https://..." />
+          </label>
+        ) : null}
+        {!fileUploadsEnabled ? <p className="muted">File uploads are disabled until Supabase Storage env vars are configured. Text and links still work.</p> : null}
+        {isFileResource(resource.resourceType) ? (
+          <label className="field">
+            <span>File</span>
+            <input className="input" type="file" onChange={(event) => setResource((current) => ({ ...current, file: event.target.files?.[0] || null }))} />
+          </label>
         ) : (
-          <section className="panel">
-            <div className="empty-state">Pick an item from the queue to start a study session.</div>
-          </section>
+          <label className="field">
+            <span>Text / description</span>
+            <textarea className="input textarea" rows="3" value={resource.description} onChange={(event) => setResource((current) => ({ ...current, description: event.target.value }))} />
+          </label>
         )}
+      </section>
+      <div className="form-actions">
+        <button className="button" disabled={mindVault.busy} type="submit">{submitLabel}</button>
       </div>
-    </div>
+    </form>
   );
 }
 
-function MindVaultInsightsPage({ mindVault }) {
-  const { analytics, stats } = mindVault;
-
+function LearningCard({ item, compact = false, onEdit, onDelete, onStudy, onResourceDelete }) {
   return (
-    <div className="mindvault-layout">
-      <div className="mindvault-column">
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">Insights</p>
-              <h3>Subject load and forecast</h3>
-            </div>
-            <span className="muted">{stats.reviewsThisWeek || 0} reviews this week</span>
-          </div>
-          <div className="insight-grid">
-            {analytics.subjects.map((subject) => (
-              <article key={subject.subjectId} className="insight-card">
-                <div className="entity-head">
-                  <strong>{subject.title}</strong>
-                  <span className="muted">{subject.itemCount} topics</span>
-                </div>
-                <ProgressRow label="Average mastery" value={subject.averageMastery} target={subject.targetMastery || 100} />
-                <div className="chips">
-                  <Badge>{subject.masteredCount} mastered</Badge>
-                  <Badge>{subject.dueCount} due</Badge>
-                  {subject.deadline ? <Badge>Due {formatDate(subject.deadline)}</Badge> : null}
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
+    <article className="entity-card learning-card">
+      <div className="entity-head">
+        <div>
+          <strong>{item.title}</strong>
+          <p>{learningTypeLabel(item)} - {item.subjectTitle || item.sourceLabel || 'Unassigned'}</p>
+        </div>
+        <div className="card-actions">
+          {onStudy ? <button className="text-button" type="button" onClick={onStudy}>Study</button> : null}
+          {onEdit ? <button className="text-button" type="button" onClick={onEdit}>Edit</button> : null}
+          {onDelete ? <button className="text-button danger" type="button" onClick={onDelete}>Delete</button> : null}
+        </div>
       </div>
+      {!compact ? <p className="entity-copy">{item.prompt || item.answer || item.notes || 'No prompt yet.'}</p> : null}
+      <div className="chips">
+        <Badge>{item.status}</Badge>
+        <Badge>Mastery {item.masteryScore}%</Badge>
+        <Badge>Importance {item.importance ?? item.priority}/5</Badge>
+        {item.reviewEnabled ? <Badge>{item.queueReason || `Next ${formatDate(item.nextReviewDate)}`}</Badge> : <Badge>No review</Badge>}
+        {(item.resources || []).length ? <Badge>{item.resources.length} resources</Badge> : null}
+      </div>
+      {!compact ? <ResourceList resources={item.resources || []} onDelete={onResourceDelete} /> : null}
+    </article>
+  );
+}
 
-      <div className="mindvault-column">
-        <section className="panel">
-          <div className="panel-header">
+function ResourceList({ resources, onDelete, readonly = false }) {
+  if (!resources.length) return null;
+  return (
+    <details className="resource-list">
+      <summary>Resources ({resources.length})</summary>
+      <div className="entity-list compact-list">
+        {resources.map((resource) => (
+          <article key={resource.id} className="resource-row">
             <div>
-              <p className="eyebrow">Forecast</p>
-              <h3>Next review load</h3>
+              <strong>{resource.title}</strong>
+              <p>{resource.resourceType} {resource.originalFileName ? `- ${resource.originalFileName}` : ''}</p>
+              {resource.url ? <a className="text-button" href={resource.url} target="_blank" rel="noreferrer">Open link</a> : null}
+              {resource.description ? <p>{resource.description}</p> : null}
             </div>
-          </div>
-          <div className="forecast-grid">
-            {analytics.forecast.map((point) => (
-              <div key={point.date} className="forecast-item">
-                <span>{formatShortDate(point.date)}</span>
-                <div className="forecast-bar">
-                  <div className="forecast-fill" style={{ width: `${Math.min(100, point.count * 12)}%` }} />
-                </div>
-                <strong>{point.count}</strong>
-              </div>
-            ))}
-          </div>
-        </section>
+            {!readonly && onDelete ? <button className="text-button danger" type="button" onClick={() => onDelete(resource)}>Delete</button> : null}
+          </article>
+        ))}
       </div>
+    </details>
+  );
+}
+
+function MiniItemList({ items, empty }) {
+  if (!items.length) return <div className="empty-state">{empty}</div>;
+  return (
+    <div className="entity-list compact-list">
+      {items.map((item) => (
+        <article key={item.id} className="resource-row">
+          <div>
+            <strong>{item.title}</strong>
+            <p>Mastery {item.masteryScore}% - lapses {item.lapseCount || 0}</p>
+          </div>
+        </article>
+      ))}
     </div>
   );
 }
@@ -1246,13 +995,9 @@ function ProgressRow({ label, value, target }) {
     <div>
       <div className="progress-row-head">
         <span>{label}</span>
-        <strong>
-          {value}/{target}
-        </strong>
+        <strong>{value}/{target}</strong>
       </div>
-      <div className="progress-track">
-        <div className="progress-fill" style={{ width: `${percent}%` }} />
-      </div>
+      <div className="progress-track"><div className="progress-fill" style={{ width: `${percent}%` }} /></div>
     </div>
   );
 }
@@ -1261,55 +1006,89 @@ function Badge({ children }) {
   return <span className="pill">{children}</span>;
 }
 
-function sortItems(left, right, sort) {
-  switch (sort) {
-    case 'mastery':
-      return (right.masteryScore || 0) - (left.masteryScore || 0);
-    case 'recent':
-      return new Date(right.updatedAt || right.createdAt || 0) - new Date(left.updatedAt || left.createdAt || 0);
-    case 'priority':
-      return (right.priority || 0) - (left.priority || 0);
-    case 'due':
-    default:
-      return new Date(left.nextReviewDate || left.dueDate || 0) - new Date(right.nextReviewDate || right.dueDate || 0);
+async function saveResourceIfPresent(itemId, resource) {
+  if (isFileResource(resource.resourceType)) {
+    if (!resource.file) return;
+    const formData = new FormData();
+    formData.append('file', resource.file);
+    if (resource.title.trim()) formData.append('title', resource.title.trim());
+    if (resource.description.trim()) formData.append('description', resource.description.trim());
+    await apiMindVaultUploadResource(itemId, formData);
+    return;
   }
+  const hasText = resource.description.trim() || resource.url.trim() || resource.title.trim();
+  if (!hasText) return;
+  await apiMindVaultCreateResource(itemId, {
+    resourceType: resource.resourceType,
+    title: resource.title.trim() || (resource.resourceType === 'LINK' ? 'Linked resource' : 'Text note'),
+    description: emptyToNull(resource.description),
+    url: emptyToNull(resource.url)
+  });
+}
+
+function itemPayload(form) {
+  return {
+    learningType: form.learningType,
+    source: form.learningType === 'RANDOM_LEARNING' ? 'RANDOM' : 'PLANNED',
+    subjectId: form.learningType === 'RANDOM_LEARNING' ? null : parseNullableId(form.subjectId),
+    sprintId: form.learningType === 'RANDOM_LEARNING' ? null : parseNullableId(form.sprintId),
+    title: form.title.trim(),
+    prompt: emptyToNull(form.prompt),
+    answer: emptyToNull(form.answer),
+    notes: emptyToNull(form.notes),
+    tags: emptyToNull(form.tags),
+    priority: Number(form.importance) || 3,
+    importance: Number(form.importance) || 3,
+    difficulty: Number(form.difficulty) || 3,
+    reviewEnabled: Boolean(form.reviewEnabled),
+    sourceLabel: emptyToNull(form.sourceLabel),
+    dueDate: emptyToNull(form.dueDate),
+    status: form.status || 'ACTIVE'
+  };
+}
+
+function firstQueueId(queue, current) {
+  if (!queue.length) return null;
+  return queue.some((item) => item.id === current) ? current : queue[0].id;
+}
+
+function itemSearchText(item) {
+  return [item.title, item.prompt, item.answer, item.notes, item.subjectTitle, item.sprintTitle, item.sourceLabel, ...(item.tags || [])]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+}
+
+function learningTypeLabel(item) {
+  return item.learningType === 'RANDOM_LEARNING' || item.source === 'RANDOM' ? 'Random learning' : 'Important topic';
+}
+
+function isFileResource(resourceType) {
+  return ['PDF', 'DOCX', 'IMAGE', 'NOTEBOOK_FILE', 'OTHER_FILE'].includes(resourceType);
 }
 
 function formatDate(value) {
-  if (!value) {
-    return '';
-  }
-  const date = new Date(`${value}T00:00:00`);
-  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  if (!value) return 'not scheduled';
+  return new Date(`${value}T00:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function formatShortDate(value) {
-  if (!value) {
-    return '';
-  }
-  const date = new Date(`${value}T00:00:00`);
-  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+  if (!value) return '';
+  return new Date(`${value}T00:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 }
 
 function joinTags(tags) {
-  if (!tags?.length) {
-    return '';
-  }
-  return tags.join(', ');
+  return tags?.length ? tags.join(', ') : '';
 }
 
 function emptyToNull(value) {
-  if (value == null) {
-    return null;
-  }
+  if (value == null) return null;
   const trimmed = String(value).trim();
   return trimmed ? trimmed : null;
 }
 
 function parseNullableId(value) {
-  if (value == null || value === '') {
-    return null;
-  }
+  if (value == null || value === '') return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }

@@ -23,7 +23,8 @@ class MindVaultSchedulerTest {
         assertThat(outcome.status()).isEqualTo(MindVaultItemStatus.ACTIVE);
         assertThat(outcome.reviewStreak()).isZero();
         assertThat(outcome.nextIntervalDays()).isEqualTo(1);
-        assertThat(outcome.nextReviewDate()).isEqualTo(LocalDate.of(2026, 4, 21));
+        assertThat(outcome.nextReviewDate()).isEqualTo(LocalDate.of(2026, 4, 22));
+        assertThat(outcome.lapseCount()).isEqualTo(1);
         assertThat(outcome.masteryScore()).isLessThan(78);
     }
 
